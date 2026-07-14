@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Song Portal</title>
+    <meta
+      name="description"
+      content="通过手机上传本地歌曲，系统将把音频提交到云端播放队列。"
+    >
+    <link rel="stylesheet" href="./styles.css">
+  </head>
+  <body>
+    <main class="page-shell">
+      <section class="hero">
+        <p class="eyebrow">INSTALLATION AUDIO PORTAL</p>
+        <h1>上传一首歌，让装置替你发声。</h1>
+        <p class="intro">
+          打开这个页面，选择手机里的音频文件，即可把歌曲提交到云端播放队列。
+        </p>
+      </section>
+
+      <section class="upload-stage" aria-labelledby="upload-title">
+        <div class="stage-copy">
+          <h2 id="upload-title">音频上传</h2>
+          <p>
+            支持 <span>MP3</span>、<span>M4A</span>、<span>WAV</span>，
+            单个文件不超过 <span>50 MB</span>。
+          </p>
+        </div>
+
+        <form class="upload-form" id="upload-form">
+          <label class="file-picker" for="audio-file">
+            <span class="file-picker-label">选择音频文件</span>
+            <span class="file-picker-hint">从手机或电脑中选择一首歌</span>
+          </label>
+          <input
+            id="audio-file"
+            name="file"
+            type="file"
+            accept=".mp3,.m4a,.wav,audio/mpeg,audio/mp4,audio/wav"
+          >
+
+          <div class="file-meta" id="file-meta" hidden>
+            <p class="file-name" id="file-name"></p>
+            <p class="file-size" id="file-size"></p>
+          </div>
+
+          <button class="upload-button" id="upload-button" type="submit">
+            上传到云端
+          </button>
+        </form>
+
+        <div class="status-panel" id="status-panel" data-tone="idle" aria-live="polite">
+          <div class="status-headline" id="status-title">准备上传</div>
+          <div class="status-detail" id="status-detail">选择一首歌曲后即可提交到云端。</div>
+          <div class="progress-track" id="progress-track" hidden>
+            <div class="progress-bar" id="progress-bar"></div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>
