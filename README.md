@@ -9,6 +9,7 @@
 - 上传进度反馈
 - Cloudflare Pages Functions 上传接口
 - R2 写入逻辑
+- Python 消费者骨架，可在电脑先拉取并模拟消费
 - Node 原生测试
 
 ## 项目结构
@@ -20,6 +21,7 @@
 - `src/shared/upload-policy.js`: 前后端共享上传规则
 - `src/shared/browser-state.js`: 前端状态与提示文案
 - `tests/`: 自动化测试
+- `consumer/`: 拉取 R2 音频并本地消费的 Python 代码
 - `docs/plans/`: 设计与实施文档
 
 ## 你需要完成的配置
@@ -70,6 +72,12 @@ PowerShell 默认可能拦截 `npm.ps1`，所以用下面这个命令：
 cmd /c npm.cmd test
 ```
 
+### 运行消费者测试
+
+```powershell
+python -m unittest discover consumer/tests -v
+```
+
 ### 静态页面预览
 
 如果只想看前端页面样式，可以在当前目录执行：
@@ -97,6 +105,76 @@ python -m http.server 8080
 4. 页面应显示 `上传成功`
 5. 去 Cloudflare R2 的 `audio-upload-files` bucket 查看
 6. 确认对象已写入 `incoming/` 前缀
+
+## 消费者运行方式
+
+当前推荐先在电脑上跑消费者，等树莓派到位后再迁移。
+
+### 1. 安装 Python 依赖
+
+```powershell
+python -m pip install -r requirements.txt
+```
+
+### 2. 准备环境变量
+
+复制 `.env.example` 为 `.env`，然后填入：
+
+- `R2_ENDPOINT`
+- `R2_ACCESS_KEY_ID`
+- `R2_SECRET_ACCESS_KEY`
+- `R2_BUCKET`
+
+首次联调建议：
+
+- `CONSUMER_DRY_RUN=true`
+- `CONSUMER_PLAYER_COMMAND=` 留空
+
+这样消费者会下载并迁移对象，但不会真的播放。
+
+### 3. 先跑一次单次消费
+
+```powershell
+python -m consumer.main --once
+```
+
+如果成功，会输出类似：
+
+```text
+[consumer] status=played key=incoming/1784003102726-2026-07-14-12-13.m4a
+```
+
+### 4. 持续轮询
+
+```powershell
+python -m consumer.main
+```
+
+默认每 10 秒轮询一次 `incoming/`。
+
+## 消费者处理规则
+
+- 从 `incoming/` 读取对象
+- 按最早上传时间优先处理
+- 下载到本地 `runtime/incoming/`
+- 如果播放或 dry-run 成功：迁移到 `played/`
+- 如果播放器返回失败：迁移到 `failed/`
+- 如果下载阶段出错：保留在 `incoming/`，下次重试
+
+注意：
+
+- R2 中的“迁移”本质上是 `copy + delete`
+- 当前按单消费者设计，适合未来只有一台树莓派或一台电脑在消费
+
+## 未来迁移到树莓派
+
+迁到树莓派时，核心 Python 代码可以保持不变，只需要改三项：
+
+1. `CONSUMER_DOWNLOAD_ROOT`
+2. `CONSUMER_PLAYER_COMMAND`
+3. 树莓派上的开机自启动方式
+
+推荐的树莓派播放命令可以后续再定，例如使用 `ffplay` 或 `mpg123`。
 
 ## 当前上传规则
 
