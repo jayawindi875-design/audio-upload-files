@@ -1,8 +1,13 @@
 import {
   formatFileSize,
   getClientValidationError,
-  getStatusContent
+  getErrorMessage,
+  getStatusContent,
+  getToggleLabel,
+  getUiCopy
 } from "./src/shared/browser-state.js";
+
+const LANGUAGE_STORAGE_KEY = "audio-upload-language";
 
 const form = document.getElementById("upload-form");
 const fileInput = document.getElementById("audio-file");
@@ -15,9 +20,29 @@ const statusTitle = document.getElementById("status-title");
 const statusDetail = document.getElementById("status-detail");
 const progressTrack = document.getElementById("progress-track");
 const progressBar = document.getElementById("progress-bar");
+const eyebrow = document.getElementById("eyebrow");
+const heroTitle = document.getElementById("hero-title");
+const heroIntro = document.getElementById("hero-intro");
+const uploadTitle = document.getElementById("upload-title");
+const uploadDescription = document.getElementById("upload-description");
+const filePickerLabel = document.getElementById("file-picker-label");
+const filePickerHint = document.getElementById("file-picker-hint");
+const langToggle = document.getElementById("lang-toggle");
+
+let currentLanguage = getStoredLanguage();
+let currentStatus = {
+  status: "idle",
+  detail: ""
+};
+
+function getStoredLanguage() {
+  const savedLanguage = window.localStorage.getItem(LANGUAGE_STORAGE_KEY);
+  return savedLanguage === "en" ? "en" : "zh";
+}
 
 function setStatus(status, detail = "") {
-  const content = getStatusContent(status, detail);
+  currentStatus = { status, detail };
+  const content = getStatusContent(status, detail, currentLanguage);
   statusPanel.dataset.tone = content.tone;
   statusTitle.textContent = content.title;
   statusDetail.textContent = content.detail;
@@ -48,8 +73,29 @@ function setSelectedFile(file) {
 }
 
 function setUploadingState(isUploading) {
+  const copy = getUiCopy(currentLanguage);
   uploadButton.disabled = isUploading;
-  uploadButton.textContent = isUploading ? "上传中..." : "上传到云端";
+  uploadButton.textContent = isUploading ? copy.stage.submitting : copy.stage.submit;
+}
+
+function applyLanguage(language) {
+  const copy = getUiCopy(language);
+
+  currentLanguage = language;
+  window.localStorage.setItem(LANGUAGE_STORAGE_KEY, language);
+  document.documentElement.lang = language === "en" ? "en" : "zh-CN";
+
+  eyebrow.textContent = copy.eyebrow;
+  heroTitle.textContent = copy.heroTitle;
+  heroIntro.textContent = copy.heroIntro;
+  uploadTitle.textContent = copy.stage.title;
+  uploadDescription.textContent = copy.stage.description;
+  filePickerLabel.textContent = copy.stage.pickerLabel;
+  filePickerHint.textContent = copy.stage.pickerHint;
+  langToggle.textContent = getToggleLabel(language);
+
+  setUploadingState(uploadButton.disabled);
+  setStatus(currentStatus.status, currentStatus.detail);
 }
 
 function uploadFile(file) {
@@ -73,12 +119,15 @@ function uploadFile(file) {
         return;
       }
 
-      const message = xhr.response?.error || "上传请求未完成，请稍后重试。";
+      const message = getErrorMessage(
+        xhr.response?.error || xhr.response?.message || "",
+        currentLanguage
+      );
       reject(new Error(message));
     });
 
     xhr.addEventListener("error", () => {
-      reject(new Error("网络连接异常，请稍后重试。"));
+      reject(new Error(getUiCopy(currentLanguage).errors.networkError));
     });
 
     xhr.send(formData);
@@ -87,7 +136,7 @@ function uploadFile(file) {
 
 fileInput.addEventListener("change", () => {
   const file = fileInput.files?.[0] || null;
-  const validationError = getClientValidationError(file);
+  const validationError = getClientValidationError(file, currentLanguage);
 
   setSelectedFile(file);
   setProgress(0);
@@ -97,14 +146,18 @@ fileInput.addEventListener("change", () => {
     return;
   }
 
-  setStatus("idle", "文件已就绪，点击下方按钮即可开始上传。");
+  setStatus("idle", getUiCopy(currentLanguage).status.readyDetail);
+});
+
+langToggle.addEventListener("click", () => {
+  applyLanguage(currentLanguage === "zh" ? "en" : "zh");
 });
 
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
 
   const file = fileInput.files?.[0] || null;
-  const validationError = getClientValidationError(file);
+  const validationError = getClientValidationError(file, currentLanguage);
 
   if (validationError) {
     setStatus("error", validationError);
@@ -129,3 +182,5 @@ form.addEventListener("submit", async (event) => {
     setUploadingState(false);
   }
 });
+
+applyLanguage(currentLanguage);

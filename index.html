@@ -13,9 +13,14 @@
   <body>
     <main class="page-shell">
       <section class="hero">
-        <p class="eyebrow">INSTALLATION AUDIO PORTAL</p>
-        <h1>上传一首歌，让装置替你发声。</h1>
-        <p class="intro">
+        <div class="hero-topbar">
+          <p class="eyebrow" id="eyebrow">INSTALLATION AUDIO PORTAL</p>
+          <button class="lang-toggle" id="lang-toggle" type="button" aria-label="Switch language">
+            EN
+          </button>
+        </div>
+        <h1 id="hero-title">上传一首歌，让装置替你发声。</h1>
+        <p class="intro" id="hero-intro">
           打开这个页面，选择手机里的音频文件，即可把歌曲提交到云端播放队列。
         </p>
       </section>
@@ -23,16 +28,13 @@
       <section class="upload-stage" aria-labelledby="upload-title">
         <div class="stage-copy">
           <h2 id="upload-title">音频上传</h2>
-          <p>
-            支持 <span>MP3</span>、<span>M4A</span>、<span>WAV</span>，
-            单个文件不超过 <span>50 MB</span>。
-          </p>
+          <p id="upload-description">支持 MP3、M4A、WAV，单个文件不超过 50 MB。</p>
         </div>
 
         <form class="upload-form" id="upload-form">
           <label class="file-picker" for="audio-file">
-            <span class="file-picker-label">选择音频文件</span>
-            <span class="file-picker-hint">从手机或电脑中选择一首歌</span>
+            <span class="file-picker-label" id="file-picker-label">选择音频文件</span>
+            <span class="file-picker-hint" id="file-picker-hint">从手机或电脑中选择一首歌</span>
           </label>
           <input
             id="audio-file"

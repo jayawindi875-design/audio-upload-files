@@ -42,12 +42,37 @@ body {
   padding-top: 2rem;
 }
 
+.hero-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
 .eyebrow {
   margin: 0 0 1rem;
   font-family: "Trebuchet MS", sans-serif;
   font-size: 0.78rem;
   letter-spacing: 0.18em;
   color: var(--accent-deep);
+}
+
+.lang-toggle {
+  margin-bottom: 1rem;
+  padding: 0.55rem 0.95rem;
+  border: 1px solid rgba(31, 26, 23, 0.16);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+  transition: transform 180ms ease, border-color 180ms ease, background 180ms ease;
+}
+
+.lang-toggle:hover {
+  transform: translateY(-1px);
+  border-color: var(--accent);
+  background: rgba(255, 255, 255, 0.92);
 }
 
 .hero h1 {
@@ -218,6 +243,10 @@ input[type="file"] {
 
   .hero {
     padding-top: 0.5rem;
+  }
+
+  .hero-topbar {
+    align-items: flex-start;
   }
 
   .upload-stage {
