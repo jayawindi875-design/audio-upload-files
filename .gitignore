@@ -1,0 +1,5 @@
+.env
+runtime/
+__pycache__/
+consumer/__pycache__/
+consumer/tests/__pycache__/
