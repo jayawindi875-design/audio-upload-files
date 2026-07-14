@@ -10,19 +10,29 @@ const UI_COPY = {
   zh: {
     eyebrow: "INSTALLATION AUDIO PORTAL",
     heroTitle: "上传一首歌，让装置替你发声。",
-    heroIntro: "打开这个页面，选择手机里的音频文件，即可把歌曲提交到云端播放队列。",
+    heroIntro: "打开这个页面，选择手机里的音频文件，或直接录下声音，即可把内容提交到云端播放队列。",
     stage: {
       title: "音频上传",
-      description: `支持 MP3、M4A、WAV，单个文件不超过 ${MB_LIMIT} MB。`,
+      description: `支持 MP3、M4A、WAV、MP4、WEBM、OGG，单个文件不超过 ${MB_LIMIT} MB。`,
       pickerLabel: "选择音频文件",
       pickerHint: "从手机或电脑中选择一首歌",
       submit: "上传到云端",
       submitting: "上传中..."
     },
+    recorder: {
+      title: "手机录音",
+      description: "打开麦克风录下一段声音，先试听，再上传到同一个播放队列。",
+      start: "开始录音",
+      stop: "停止录音",
+      preview: "录音试听",
+      upload: "上传录音",
+      recording: "录音中..."
+    },
     status: {
       idleTitle: "准备上传",
       idleDetail: "选择一首歌曲后即可提交到云端。",
       readyDetail: "文件已就绪，点击下方按钮即可开始上传。",
+      recorderReadyDetail: "录音已完成，可以先试听，再上传到云端。",
       successTitle: "上传成功",
       successDetail: "歌曲已进入云端队列，播放端稍后即可获取。",
       uploadingTitle: "正在上传",
@@ -32,30 +42,43 @@ const UI_COPY = {
     },
     errors: {
       noFile: "请先选择一个音频文件。",
-      unsupportedType: "仅支持上传 MP3、M4A 或 WAV 文件。",
+      unsupportedType: "仅支持上传 MP3、M4A、WAV、MP4、WEBM 或 OGG 文件。",
       fileTooLarge: `文件不能超过 ${MB_LIMIT} MB。`,
       requestFailed: "上传请求未完成，请稍后重试。",
       networkError: "网络连接异常，请稍后重试。",
       storageNotConfigured: "云端存储尚未配置完成，请检查 Cloudflare R2 绑定。",
+      recorderUnsupported: "当前浏览器不支持网页录音，请改用文件上传。",
+      microphoneDenied: "麦克风权限未开启，请允许浏览器访问麦克风后重试。",
+      recorderEmpty: "请先完成一段录音，再上传。",
       unknown: "出现了未预期的问题，请稍后再试。"
     }
   },
   en: {
     eyebrow: "INSTALLATION AUDIO PORTAL",
     heroTitle: "Upload a song and let the installation speak for you.",
-    heroIntro: "Open this page, choose an audio file from your phone, and send it to the cloud playback queue.",
+    heroIntro: "Open this page, choose an audio file from your phone, or record one live, and send it to the cloud playback queue.",
     stage: {
       title: "Audio Upload",
-      description: `Supports MP3, M4A and WAV files, up to ${MB_LIMIT} MB each.`,
+      description: `Supports MP3, M4A, WAV, MP4, WEBM and OGG files, up to ${MB_LIMIT} MB each.`,
       pickerLabel: "Choose an audio file",
       pickerHint: "Pick a song from your phone or computer",
       submit: "Upload to cloud",
       submitting: "Uploading..."
     },
+    recorder: {
+      title: "Record on your phone",
+      description: "Use your microphone to record a short message, preview it, then upload it to the same queue.",
+      start: "Start recording",
+      stop: "Stop recording",
+      preview: "Recorded preview",
+      upload: "Upload recording",
+      recording: "Recording..."
+    },
     status: {
       idleTitle: "Ready to upload",
       idleDetail: "Choose a song and send it to the cloud queue.",
       readyDetail: "Your file is ready. Tap the button below to start uploading.",
+      recorderReadyDetail: "Your recording is ready. Preview it or upload it to the cloud queue.",
       successTitle: "Upload complete",
       successDetail: "The song is now in the cloud queue and can be picked up by the player shortly.",
       uploadingTitle: "Uploading now",
@@ -65,11 +88,14 @@ const UI_COPY = {
     },
     errors: {
       noFile: "Please choose an audio file first.",
-      unsupportedType: "Only MP3, M4A and WAV files are supported.",
+      unsupportedType: "Only MP3, M4A, WAV, MP4, WEBM and OGG files are supported.",
       fileTooLarge: `Files must be smaller than ${MB_LIMIT} MB.`,
       requestFailed: "The upload request did not complete. Please try again shortly.",
       networkError: "The network connection was interrupted. Please try again.",
       storageNotConfigured: "Storage is not configured yet. Please check the Cloudflare R2 binding.",
+      recorderUnsupported: "This browser does not support in-page recording yet. Please upload a file instead.",
+      microphoneDenied: "Microphone access was denied. Please allow microphone permission and try again.",
+      recorderEmpty: "Please finish a recording before uploading it.",
       unknown: "Something unexpected happened. Please try again."
     }
   }

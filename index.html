@@ -6,7 +6,7 @@
     <title>Song Portal</title>
     <meta
       name="description"
-      content="通过手机上传本地歌曲，系统将把音频提交到云端播放队列。"
+      content="通过手机上传本地歌曲，或直接录音后上传，系统会把音频提交到云端播放队列。"
     >
     <link rel="stylesheet" href="./styles.css">
   </head>
@@ -21,14 +21,14 @@
         </div>
         <h1 id="hero-title">上传一首歌，让装置替你发声。</h1>
         <p class="intro" id="hero-intro">
-          打开这个页面，选择手机里的音频文件，即可把歌曲提交到云端播放队列。
+          打开这个页面，选择手机里的音频文件，或直接录下声音，即可把内容提交到云端播放队列。
         </p>
       </section>
 
       <section class="upload-stage" aria-labelledby="upload-title">
         <div class="stage-copy">
           <h2 id="upload-title">音频上传</h2>
-          <p id="upload-description">支持 MP3、M4A、WAV，单个文件不超过 50 MB。</p>
+          <p id="upload-description">支持 MP3、M4A、WAV、MP4、WEBM、OGG，单个文件不超过 50 MB。</p>
         </div>
 
         <form class="upload-form" id="upload-form">
@@ -40,7 +40,7 @@
             id="audio-file"
             name="file"
             type="file"
-            accept=".mp3,.m4a,.wav,audio/mpeg,audio/mp4,audio/wav"
+            accept=".mp3,.m4a,.wav,.mp4,.webm,.ogg,audio/mpeg,audio/mp4,audio/wav,audio/webm,audio/ogg"
           >
 
           <div class="file-meta" id="file-meta" hidden>
@@ -52,6 +52,26 @@
             上传到云端
           </button>
         </form>
+
+        <section class="recorder-card" aria-labelledby="recorder-title">
+          <div class="stage-copy">
+            <h2 id="recorder-title">手机录音</h2>
+            <p id="recorder-description">打开麦克风录下一段声音，先试听，再上传到同一个播放队列。</p>
+          </div>
+
+          <div class="recorder-actions">
+            <button class="secondary-button" id="record-start-button" type="button">开始录音</button>
+            <button class="secondary-button" id="record-stop-button" type="button" disabled>停止录音</button>
+            <button class="upload-button ghost" id="record-upload-button" type="button" disabled>上传录音</button>
+          </div>
+
+          <div class="recorder-indicator" id="record-indicator" hidden></div>
+
+          <div class="recorder-preview" id="record-preview" hidden>
+            <p class="preview-title" id="record-preview-title">录音试听</p>
+            <audio id="recorded-audio" controls preload="metadata"></audio>
+          </div>
+        </section>
 
         <div class="status-panel" id="status-panel" data-tone="idle" aria-live="polite">
           <div class="status-headline" id="status-title">准备上传</div>

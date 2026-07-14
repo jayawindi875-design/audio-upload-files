@@ -122,6 +122,14 @@ body {
   margin-top: 1.75rem;
 }
 
+.recorder-card {
+  display: grid;
+  gap: 1rem;
+  margin-top: 1.75rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--line);
+}
+
 .file-picker {
   display: grid;
   gap: 0.4rem;
@@ -198,6 +206,64 @@ input[type="file"] {
   cursor: wait;
 }
 
+.secondary-button {
+  width: fit-content;
+  min-width: 10rem;
+  padding: 0.9rem 1.2rem;
+  border: 1px solid rgba(31, 26, 23, 0.14);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.76);
+  color: var(--text);
+  font: inherit;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: transform 180ms ease, border-color 180ms ease, background 180ms ease, opacity 180ms ease;
+}
+
+.secondary-button:hover:not(:disabled),
+.upload-button.ghost:hover:not(:disabled) {
+  transform: translateY(-1px);
+  border-color: var(--accent);
+  background: rgba(255, 255, 255, 0.95);
+}
+
+.secondary-button:disabled,
+.upload-button.ghost:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.upload-button.ghost {
+  background: transparent;
+  color: var(--accent-deep);
+  border: 1px solid rgba(199, 92, 52, 0.26);
+}
+
+.recorder-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.85rem;
+}
+
+.recorder-indicator {
+  color: var(--error);
+  font-size: 0.95rem;
+}
+
+.recorder-preview {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.preview-title {
+  margin: 0;
+  font-size: 0.98rem;
+}
+
+.recorder-preview audio {
+  width: 100%;
+}
+
 .status-panel {
   margin-top: 1.5rem;
   padding-top: 1.25rem;
@@ -254,6 +320,10 @@ input[type="file"] {
   }
 
   .upload-button {
+    width: 100%;
+  }
+
+  .secondary-button {
     width: 100%;
   }
 }

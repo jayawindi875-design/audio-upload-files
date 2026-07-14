@@ -4,6 +4,9 @@ from pathlib import Path
 
 
 def _load_dotenv_if_available():
+    if os.environ.get("CONSUMER_SKIP_DOTENV", "").strip().lower() in {"1", "true", "yes", "on"}:
+        return
+
     try:
         from dotenv import load_dotenv
     except ImportError:

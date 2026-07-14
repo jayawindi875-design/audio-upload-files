@@ -26,7 +26,7 @@ test("returns an English validation message when no file is selected", () => {
 test("returns a validation message for unsupported file extensions", () => {
   assert.equal(
     getClientValidationError({ name: "demo.txt", size: 128 }),
-    "仅支持上传 MP3、M4A 或 WAV 文件。"
+    "仅支持上传 MP3、M4A、WAV、MP4、WEBM 或 OGG 文件。"
   );
 });
 
@@ -83,10 +83,22 @@ test("returns the expected Chinese and English toggle labels", () => {
 test("returns English UI copy for the upload section", () => {
   assert.deepEqual(getUiCopy("en").stage, {
     title: "Audio Upload",
-    description: "Supports MP3, M4A and WAV files, up to 50 MB each.",
+    description: "Supports MP3, M4A, WAV, MP4, WEBM and OGG files, up to 50 MB each.",
     pickerLabel: "Choose an audio file",
     pickerHint: "Pick a song from your phone or computer",
     submit: "Upload to cloud",
     submitting: "Uploading..."
+  });
+});
+
+test("returns English UI copy for the recorder section", () => {
+  assert.deepEqual(getUiCopy("en").recorder, {
+    title: "Record on your phone",
+    description: "Use your microphone to record a short message, preview it, then upload it to the same queue.",
+    start: "Start recording",
+    stop: "Stop recording",
+    preview: "Recorded preview",
+    upload: "Upload recording",
+    recording: "Recording..."
   });
 });

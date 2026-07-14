@@ -113,3 +113,20 @@ test("stores accepted audio files in the incoming prefix", async () => {
   assert.equal(env.calls[0].key, body.key);
   assert.equal(env.calls[0].options.httpMetadata.contentType, "audio/mpeg");
 });
+
+test("stores recorded webm uploads", async () => {
+  const env = createEnvRecorder();
+  const file = new File(["recorded-data"], "recording.webm", { type: "audio/webm" });
+
+  const response = await onRequestPost({
+    request: createRequestWithFile(file),
+    env
+  });
+
+  const body = await response.json();
+
+  assert.equal(response.status, 200);
+  assert.equal(body.ok, true);
+  assert.match(body.key, /^incoming\/\d+-recording\.webm$/);
+  assert.equal(env.calls[0].options.httpMetadata.contentType, "audio/webm");
+});

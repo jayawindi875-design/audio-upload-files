@@ -1,4 +1,7 @@
 import {
+  extensionFromRecorderMimeType
+} from "./src/shared/upload-policy.js";
+import {
   formatFileSize,
   getClientValidationError,
   getErrorMessage,
@@ -8,6 +11,13 @@ import {
 } from "./src/shared/browser-state.js";
 
 const LANGUAGE_STORAGE_KEY = "audio-upload-language";
+const RECORDER_MIME_CANDIDATES = [
+  "audio/mp4",
+  "audio/webm;codecs=opus",
+  "audio/webm",
+  "audio/ogg;codecs=opus",
+  "audio/ogg"
+];
 
 const form = document.getElementById("upload-form");
 const fileInput = document.getElementById("audio-file");
@@ -28,12 +38,28 @@ const uploadDescription = document.getElementById("upload-description");
 const filePickerLabel = document.getElementById("file-picker-label");
 const filePickerHint = document.getElementById("file-picker-hint");
 const langToggle = document.getElementById("lang-toggle");
+const recorderTitle = document.getElementById("recorder-title");
+const recorderDescription = document.getElementById("recorder-description");
+const recordStartButton = document.getElementById("record-start-button");
+const recordStopButton = document.getElementById("record-stop-button");
+const recordUploadButton = document.getElementById("record-upload-button");
+const recordIndicator = document.getElementById("record-indicator");
+const recordPreview = document.getElementById("record-preview");
+const recordPreviewTitle = document.getElementById("record-preview-title");
+const recordedAudio = document.getElementById("recorded-audio");
 
 let currentLanguage = getStoredLanguage();
 let currentStatus = {
   status: "idle",
   detail: ""
 };
+let recordedBlob = null;
+let recordedFile = null;
+let recordedAudioUrl = "";
+let mediaRecorder = null;
+let mediaStream = null;
+let recordedChunks = [];
+let recorderMimeType = "";
 
 function getStoredLanguage() {
   const savedLanguage = window.localStorage.getItem(LANGUAGE_STORAGE_KEY);
@@ -75,7 +101,17 @@ function setSelectedFile(file) {
 function setUploadingState(isUploading) {
   const copy = getUiCopy(currentLanguage);
   uploadButton.disabled = isUploading;
+  recordUploadButton.disabled = isUploading || !recordedFile;
   uploadButton.textContent = isUploading ? copy.stage.submitting : copy.stage.submit;
+  recordUploadButton.textContent = isUploading ? copy.stage.submitting : copy.recorder.upload;
+}
+
+function setRecordingState(isRecording) {
+  const copy = getUiCopy(currentLanguage);
+  recordStartButton.disabled = isRecording;
+  recordStopButton.disabled = !isRecording;
+  recordIndicator.hidden = !isRecording;
+  recordIndicator.textContent = copy.recorder.recording;
 }
 
 function applyLanguage(language) {
@@ -93,9 +129,52 @@ function applyLanguage(language) {
   filePickerLabel.textContent = copy.stage.pickerLabel;
   filePickerHint.textContent = copy.stage.pickerHint;
   langToggle.textContent = getToggleLabel(language);
+  recorderTitle.textContent = copy.recorder.title;
+  recorderDescription.textContent = copy.recorder.description;
+  recordStartButton.textContent = copy.recorder.start;
+  recordStopButton.textContent = copy.recorder.stop;
+  recordUploadButton.textContent = copy.recorder.upload;
+  recordPreviewTitle.textContent = copy.recorder.preview;
+  recordIndicator.textContent = copy.recorder.recording;
 
   setUploadingState(uploadButton.disabled);
   setStatus(currentStatus.status, currentStatus.detail);
+}
+
+function chooseRecorderMimeType() {
+  if (typeof MediaRecorder === "undefined" || typeof MediaRecorder.isTypeSupported !== "function") {
+    return "";
+  }
+
+  for (const mimeType of RECORDER_MIME_CANDIDATES) {
+    if (MediaRecorder.isTypeSupported(mimeType)) {
+      return mimeType;
+    }
+  }
+
+  return "";
+}
+
+function resetRecordedAudio() {
+  recordedBlob = null;
+  recordedFile = null;
+  recordUploadButton.disabled = true;
+  recordPreview.hidden = true;
+
+  if (recordedAudioUrl) {
+    URL.revokeObjectURL(recordedAudioUrl);
+    recordedAudioUrl = "";
+  }
+
+  recordedAudio.removeAttribute("src");
+  recordedAudio.load();
+}
+
+function buildRecordedFile(blob, mimeType) {
+  const extension = extensionFromRecorderMimeType(mimeType || blob.type);
+  return new File([blob], `recording-${Date.now()}${extension}`, {
+    type: blob.type || mimeType || "application/octet-stream"
+  });
 }
 
 function uploadFile(file) {
@@ -134,6 +213,92 @@ function uploadFile(file) {
   });
 }
 
+async function uploadPreparedFile(file) {
+  const validationError = getClientValidationError(file, currentLanguage);
+
+  if (validationError) {
+    setStatus("error", validationError);
+    return false;
+  }
+
+  try {
+    setUploadingState(true);
+    setStatus("uploading");
+    setProgress(4);
+
+    await uploadFile(file);
+
+    setProgress(100);
+    setStatus("success");
+    return true;
+  } catch (error) {
+    setStatus("error", error.message);
+    setProgress(0);
+    return false;
+  } finally {
+    setUploadingState(false);
+  }
+}
+
+async function startRecording() {
+  const copy = getUiCopy(currentLanguage);
+
+  if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
+    setStatus("error", copy.errors.recorderUnsupported);
+    return;
+  }
+
+  recorderMimeType = chooseRecorderMimeType();
+  if (!recorderMimeType) {
+    setStatus("error", copy.errors.recorderUnsupported);
+    return;
+  }
+
+  try {
+    resetRecordedAudio();
+    mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    mediaRecorder = new MediaRecorder(mediaStream, { mimeType: recorderMimeType });
+    recordedChunks = [];
+
+    mediaRecorder.addEventListener("dataavailable", (event) => {
+      if (event.data && event.data.size > 0) {
+        recordedChunks.push(event.data);
+      }
+    });
+
+    mediaRecorder.addEventListener("stop", () => {
+      const blob = new Blob(recordedChunks, { type: recorderMimeType });
+      recordedBlob = blob;
+      recordedFile = buildRecordedFile(blob, recorderMimeType);
+      recordedAudioUrl = URL.createObjectURL(blob);
+      recordedAudio.src = recordedAudioUrl;
+      recordPreview.hidden = false;
+      recordUploadButton.disabled = false;
+      setRecordingState(false);
+      setStatus("idle", getUiCopy(currentLanguage).status.recorderReadyDetail);
+
+      mediaStream?.getTracks().forEach((track) => track.stop());
+      mediaStream = null;
+      mediaRecorder = null;
+      recordedChunks = [];
+    });
+
+    mediaRecorder.start();
+    setRecordingState(true);
+    setStatus("idle", copy.recorder.recording);
+  } catch (error) {
+    const denied = error?.name === "NotAllowedError" || error?.name === "SecurityError";
+    setRecordingState(false);
+    setStatus("error", denied ? copy.errors.microphoneDenied : copy.errors.recorderUnsupported);
+  }
+}
+
+function stopRecording() {
+  if (mediaRecorder?.state === "recording") {
+    mediaRecorder.stop();
+  }
+}
+
 fileInput.addEventListener("change", () => {
   const file = fileInput.files?.[0] || null;
   const validationError = getClientValidationError(file, currentLanguage);
@@ -149,6 +314,23 @@ fileInput.addEventListener("change", () => {
   setStatus("idle", getUiCopy(currentLanguage).status.readyDetail);
 });
 
+recordStartButton.addEventListener("click", async () => {
+  await startRecording();
+});
+
+recordStopButton.addEventListener("click", () => {
+  stopRecording();
+});
+
+recordUploadButton.addEventListener("click", async () => {
+  if (!recordedFile) {
+    setStatus("error", getUiCopy(currentLanguage).errors.recorderEmpty);
+    return;
+  }
+
+  await uploadPreparedFile(recordedFile);
+});
+
 langToggle.addEventListener("click", () => {
   applyLanguage(currentLanguage === "zh" ? "en" : "zh");
 });
@@ -157,30 +339,13 @@ form.addEventListener("submit", async (event) => {
   event.preventDefault();
 
   const file = fileInput.files?.[0] || null;
-  const validationError = getClientValidationError(file, currentLanguage);
+  const uploaded = await uploadPreparedFile(file);
 
-  if (validationError) {
-    setStatus("error", validationError);
-    return;
-  }
-
-  try {
-    setUploadingState(true);
-    setStatus("uploading");
-    setProgress(4);
-
-    await uploadFile(file);
-
-    setProgress(100);
-    setStatus("success");
+  if (uploaded && file) {
     form.reset();
     setSelectedFile(null);
-  } catch (error) {
-    setStatus("error", error.message);
-    setProgress(0);
-  } finally {
-    setUploadingState(false);
   }
 });
 
 applyLanguage(currentLanguage);
+setRecordingState(false);

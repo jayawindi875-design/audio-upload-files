@@ -13,6 +13,9 @@ test("accepts supported audio file extensions", () => {
   assert.equal(isAllowedAudioFile("demo.mp3"), true);
   assert.equal(isAllowedAudioFile("voice.m4a"), true);
   assert.equal(isAllowedAudioFile("sample.wav"), true);
+  assert.equal(isAllowedAudioFile("recording.mp4"), true);
+  assert.equal(isAllowedAudioFile("recording.webm"), true);
+  assert.equal(isAllowedAudioFile("recording.ogg"), true);
 });
 
 test("rejects unsupported file extensions", () => {
@@ -37,5 +40,5 @@ test("builds a safe incoming object key", () => {
 });
 
 test("exports the expected extension allowlist", () => {
-  assert.deepEqual(ALLOWED_EXTENSIONS, [".mp3", ".m4a", ".wav"]);
+  assert.deepEqual(ALLOWED_EXTENSIONS, [".mp3", ".m4a", ".wav", ".mp4", ".webm", ".ogg"]);
 });

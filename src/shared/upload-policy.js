@@ -1,5 +1,15 @@
-export const ALLOWED_EXTENSIONS = [".mp3", ".m4a", ".wav"];
+export const ALLOWED_EXTENSIONS = [".mp3", ".m4a", ".wav", ".mp4", ".webm", ".ogg"];
 export const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024;
+
+const RECORDER_EXTENSION_BY_MIME = {
+  "audio/mp4": ".mp4",
+  "audio/x-m4a": ".m4a",
+  "audio/aac": ".m4a",
+  "audio/webm": ".webm",
+  "audio/webm;codecs=opus": ".webm",
+  "audio/ogg": ".ogg",
+  "audio/ogg;codecs=opus": ".ogg"
+};
 
 function normalizeExtension(fileName) {
   const normalized = String(fileName || "").trim().toLowerCase();
@@ -37,4 +47,8 @@ export function buildObjectKey(fileName, timestamp = Date.now()) {
   const safeBaseName = slugifyBaseName(fileName);
 
   return `incoming/${timestamp}-${safeBaseName}${safeExtension}`;
+}
+
+export function extensionFromRecorderMimeType(mimeType) {
+  return RECORDER_EXTENSION_BY_MIME[String(mimeType || "").toLowerCase()] || ".webm";
 }

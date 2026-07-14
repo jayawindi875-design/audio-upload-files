@@ -21,6 +21,7 @@ class RuntimeTests(unittest.TestCase):
                         "CONSUMER_DOWNLOAD_ROOT": temp_dir,
                         "CONSUMER_POLL_INTERVAL": "9",
                         "CONSUMER_DRY_RUN": "true",
+                        "CONSUMER_SKIP_DOTENV": "true",
                     }
                 )
 
@@ -44,6 +45,8 @@ class RuntimeTests(unittest.TestCase):
                 "R2_BUCKET",
             ]:
                 os.environ.pop(key, None)
+
+            os.environ["CONSUMER_SKIP_DOTENV"] = "true"
 
             with self.assertRaises(ValueError):
                 ConsumerConfig.from_env()
