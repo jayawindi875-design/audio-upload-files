@@ -3,10 +3,10 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Song Portal</title>
+    <title>Voice Portal</title>
     <meta
       name="description"
-      content="通过手机上传本地歌曲，或直接录音后上传，系统会把音频提交到云端播放队列。"
+      content="通过手机麦克风录音，选择立即或延迟播放，再把声音发送到云端装置。"
     >
     <link rel="stylesheet" href="./styles.css">
   </head>
@@ -19,63 +19,74 @@
             EN
           </button>
         </div>
-        <h1 id="hero-title">上传一首歌，让装置替你发声。</h1>
+        <h1 id="hero-title">录下你的声音，让装置替你发声。</h1>
         <p class="intro" id="hero-intro">
-          打开这个页面，选择手机里的音频文件，或直接录下声音，即可把内容提交到云端播放队列。
+          打开麦克风录下一段声音，选择立即或延迟播放，再把录音发送到云端装置。
         </p>
       </section>
 
-      <section class="upload-stage" aria-labelledby="upload-title">
+      <section class="upload-stage" aria-labelledby="recorder-title">
         <div class="stage-copy">
-          <h2 id="upload-title">音频上传</h2>
-          <p id="upload-description">支持 MP3、M4A、WAV、MP4、WEBM、OGG，单个文件不超过 50 MB。</p>
+          <h2 id="recorder-title">录制声音</h2>
+          <p id="recorder-description">支持手机和电脑浏览器录音，单段录音不超过 50 MB。</p>
         </div>
 
-        <form class="upload-form" id="upload-form">
-          <label class="file-picker" for="audio-file">
-            <span class="file-picker-label" id="file-picker-label">选择音频文件</span>
-            <span class="file-picker-hint" id="file-picker-hint">从手机或电脑中选择一首歌</span>
-          </label>
-          <input
-            id="audio-file"
-            name="file"
-            type="file"
-            accept=".mp3,.m4a,.wav,.mp4,.webm,.ogg,audio/mpeg,audio/mp4,audio/wav,audio/webm,audio/ogg"
-          >
+        <div class="recorder-actions">
+          <button class="secondary-button" id="record-start-button" type="button">开始录音</button>
+          <button class="secondary-button" id="record-stop-button" type="button" disabled>停止录音</button>
+        </div>
 
-          <div class="file-meta" id="file-meta" hidden>
-            <p class="file-name" id="file-name"></p>
-            <p class="file-size" id="file-size"></p>
+        <div class="recorder-indicator" id="record-indicator" hidden></div>
+
+        <div class="recorder-preview" id="record-preview" hidden>
+          <p class="preview-title" id="record-preview-title">录音试听</p>
+          <audio id="recorded-audio" controls preload="metadata"></audio>
+        </div>
+
+        <fieldset class="playback-panel">
+          <legend id="playback-title">选择播放时间</legend>
+          <div class="playback-options">
+            <label class="playback-choice">
+              <input type="radio" name="playback-mode" value="immediate" checked>
+              <span>
+                <strong id="playback-immediate-label">立即播放</strong>
+                <small id="playback-immediate-hint">上传完成后，装置会尽快播放</small>
+              </span>
+            </label>
+            <label class="playback-choice">
+              <input type="radio" name="playback-mode" value="delayed">
+              <span>
+                <strong id="playback-delayed-label">延迟播放</strong>
+                <small id="playback-delayed-hint">上传后等待指定秒数再播放</small>
+              </span>
+            </label>
           </div>
 
-          <button class="upload-button" id="upload-button" type="submit">
-            上传到云端
-          </button>
-        </form>
-
-        <section class="recorder-card" aria-labelledby="recorder-title">
-          <div class="stage-copy">
-            <h2 id="recorder-title">手机录音</h2>
-            <p id="recorder-description">打开麦克风录下一段声音，先试听，再上传到同一个播放队列。</p>
+          <div class="delay-fields" id="delay-fields" hidden>
+            <label for="delay-seconds" id="delay-label">延迟时间</label>
+            <div class="delay-input-row">
+              <input
+                id="delay-seconds"
+                type="number"
+                min="1"
+                max="604800"
+                step="1"
+                value="30"
+                inputmode="numeric"
+              >
+              <span id="delay-unit">秒</span>
+            </div>
+            <p class="delay-summary" id="delay-summary">录音将在上传后 30 秒进入播放。</p>
           </div>
+        </fieldset>
 
-          <div class="recorder-actions">
-            <button class="secondary-button" id="record-start-button" type="button">开始录音</button>
-            <button class="secondary-button" id="record-stop-button" type="button" disabled>停止录音</button>
-            <button class="upload-button ghost" id="record-upload-button" type="button" disabled>上传录音</button>
-          </div>
-
-          <div class="recorder-indicator" id="record-indicator" hidden></div>
-
-          <div class="recorder-preview" id="record-preview" hidden>
-            <p class="preview-title" id="record-preview-title">录音试听</p>
-            <audio id="recorded-audio" controls preload="metadata"></audio>
-          </div>
-        </section>
+        <button class="upload-button" id="record-upload-button" type="button" disabled>
+          上传录音
+        </button>
 
         <div class="status-panel" id="status-panel" data-tone="idle" aria-live="polite">
-          <div class="status-headline" id="status-title">准备上传</div>
-          <div class="status-detail" id="status-detail">选择一首歌曲后即可提交到云端。</div>
+          <div class="status-headline" id="status-title">准备录音</div>
+          <div class="status-detail" id="status-detail">点击开始录音，并允许浏览器使用麦克风。</div>
           <div class="progress-track" id="progress-track" hidden>
             <div class="progress-bar" id="progress-bar"></div>
           </div>

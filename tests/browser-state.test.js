@@ -2,12 +2,14 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  canStartRecording,
   formatFileSize,
   getClientValidationError,
   getErrorMessage,
   getStatusContent,
   getToggleLabel,
-  getUiCopy
+  getUiCopy,
+  resolvePlaybackDelaySeconds
 } from "../src/shared/browser-state.js";
 
 test("formats bytes into readable megabytes", () => {
@@ -16,24 +18,24 @@ test("formats bytes into readable megabytes", () => {
 });
 
 test("returns a validation message when no file is selected", () => {
-  assert.equal(getClientValidationError(null), "请先选择一个音频文件。");
+  assert.equal(getClientValidationError(null), "请先完成一段录音。");
 });
 
 test("returns an English validation message when no file is selected", () => {
-  assert.equal(getClientValidationError(null, "en"), "Please choose an audio file first.");
+  assert.equal(getClientValidationError(null, "en"), "Please finish a recording first.");
 });
 
 test("returns a validation message for unsupported file extensions", () => {
   assert.equal(
     getClientValidationError({ name: "demo.txt", size: 128 }),
-    "仅支持上传 MP3、M4A、WAV、MP4、WEBM 或 OGG 文件。"
+    "当前录音格式不受支持，请换一个浏览器重试。"
   );
 });
 
 test("returns a validation message for oversized files", () => {
   assert.equal(
     getClientValidationError({ name: "demo.mp3", size: 60 * 1024 * 1024 }),
-    "文件不能超过 50 MB。"
+    "录音不能超过 50 MB。"
   );
 });
 
@@ -48,7 +50,7 @@ test("maps success status into user-facing copy", () => {
   assert.deepEqual(getStatusContent("success"), {
     tone: "success",
     title: "上传成功",
-    detail: "歌曲已进入云端队列，播放端稍后即可获取。"
+    detail: "录音已进入云端队列，将按照你选择的时间播放。"
   });
 });
 
@@ -56,7 +58,7 @@ test("maps success status into English copy", () => {
   assert.deepEqual(getStatusContent("success", "", "en"), {
     tone: "success",
     title: "Upload complete",
-    detail: "The song is now in the cloud queue and can be picked up by the player shortly."
+    detail: "Your recording is queued and will play at the time you selected."
   });
 });
 
@@ -80,25 +82,39 @@ test("returns the expected Chinese and English toggle labels", () => {
   assert.equal(getToggleLabel("en"), "中文");
 });
 
-test("returns English UI copy for the upload section", () => {
-  assert.deepEqual(getUiCopy("en").stage, {
-    title: "Audio Upload",
-    description: "Supports MP3, M4A, WAV, MP4, WEBM and OGG files, up to 50 MB each.",
-    pickerLabel: "Choose an audio file",
-    pickerHint: "Pick a song from your phone or computer",
-    submit: "Upload to cloud",
-    submitting: "Uploading..."
-  });
+test("returns recording-only hero copy", () => {
+  assert.equal(getUiCopy("zh").heroTitle, "录下你的声音，让装置替你发声。");
+  assert.equal(getUiCopy("en").heroTitle, "Record your voice and let the installation speak.");
 });
 
 test("returns English UI copy for the recorder section", () => {
-  assert.deepEqual(getUiCopy("en").recorder, {
-    title: "Record on your phone",
-    description: "Use your microphone to record a short message, preview it, then upload it to the same queue.",
-    start: "Start recording",
-    stop: "Stop recording",
-    preview: "Recorded preview",
-    upload: "Upload recording",
-    recording: "Recording..."
-  });
+  const copy = getUiCopy("en");
+
+  assert.equal(copy.recorder.title, "Record your voice");
+  assert.equal(copy.recorder.upload, "Upload recording");
+  assert.equal(copy.playback.immediate, "Play immediately");
+  assert.equal(copy.playback.delayed, "Play after a delay");
+  assert.equal(copy.playback.delayLabel, "Delay time");
+});
+
+test("resolves immediate and delayed playback choices", () => {
+  assert.equal(resolvePlaybackDelaySeconds("immediate", ""), 0);
+  assert.equal(resolvePlaybackDelaySeconds("delayed", "37"), 37);
+  assert.equal(resolvePlaybackDelaySeconds("delayed", "0"), null);
+  assert.equal(resolvePlaybackDelaySeconds("delayed", "1.5"), null);
+});
+
+test("maps invalid delay responses into readable copy", () => {
+  assert.equal(getErrorMessage("INVALID_DELAY", "zh"), "延迟时间必须是 1 到 604800 之间的整数秒。");
+  assert.equal(
+    getErrorMessage("INVALID_DELAY", "en"),
+    "Delay must be a whole number from 1 to 604800 seconds."
+  );
+});
+
+test("prevents recording startup while permission, recording, or upload is active", () => {
+  assert.equal(canStartRecording({ isRequesting: false, isRecording: false, isUploading: false }), true);
+  assert.equal(canStartRecording({ isRequesting: true, isRecording: false, isUploading: false }), false);
+  assert.equal(canStartRecording({ isRequesting: false, isRecording: true, isUploading: false }), false);
+  assert.equal(canStartRecording({ isRequesting: false, isRecording: false, isUploading: true }), false);
 });

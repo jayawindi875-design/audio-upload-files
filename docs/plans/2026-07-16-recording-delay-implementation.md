@@ -2,7 +2,7 @@
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
-**Goal:** Remove local audio-file uploading and let users schedule recorded audio for playback after any integer number of seconds.
+**Goal:** Remove local audio-file uploading and let users choose immediate playback or schedule recorded audio after any integer number of seconds.
 
 **Architecture:** The browser submits `delaySeconds` with the recorded file. The Pages Function validates it, computes an authoritative server-side `playAt`, and embeds that timestamp in the R2 object key; the Python consumer parses keys and only downloads due recordings.
 
@@ -47,7 +47,7 @@
 1. Add failing tests for bilingual recording-only copy, delay labels, formatting, and delay error messages.
 2. Run browser-state tests and confirm expected failures.
 3. Remove the file picker/form DOM and JavaScript paths.
-4. Add the numeric delay input, live wait summary, and delayed-success copy while preserving recording, preview, upload progress, and language switching.
+4. Add immediate/delayed playback choices; reveal the numeric delay input and live wait summary only for delayed playback, while preserving recording, preview, upload progress, and language switching.
 5. Run all Node tests.
 
 ### Task 4: Defer consumer playback until due

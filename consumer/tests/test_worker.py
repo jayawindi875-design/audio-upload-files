@@ -116,6 +116,76 @@ class QueueWorkerTests(unittest.TestCase):
         self.assertEqual(r2_client.move_calls, [])
         self.assertEqual(player.play_calls, [])
 
+    def test_waits_without_downloading_when_all_recordings_are_scheduled_for_the_future(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            r2_client = FakeR2Client(
+                objects=[
+                    {
+                        "key": "incoming/1784190400000-1784190300000-recording.webm",
+                        "last_modified": 1784190300,
+                    }
+                ]
+            )
+            player = FakePlayer()
+            worker = QueueWorker(
+                r2_client=r2_client,
+                player=player,
+                download_root=Path(temp_dir),
+                now_ms=lambda: 1784190399999,
+            )
+
+            result = worker.process_next()
+
+        self.assertEqual(result.status, "waiting")
+        self.assertEqual(result.processed_key, "")
+        self.assertEqual(r2_client.download_calls, [])
+        self.assertEqual(player.play_calls, [])
+
+    def test_plays_the_earliest_due_schedule_even_when_upload_order_differs(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            r2_client = FakeR2Client(
+                objects=[
+                    {
+                        "key": "incoming/1784190400000-1784190200000-later.webm",
+                        "last_modified": 100,
+                    },
+                    {
+                        "key": "incoming/1784190350000-1784190300000-earlier.webm",
+                        "last_modified": 200,
+                    },
+                ]
+            )
+            worker = QueueWorker(
+                r2_client=r2_client,
+                player=FakePlayer(),
+                download_root=Path(temp_dir),
+                now_ms=lambda: 1784190500000,
+            )
+
+            result = worker.process_next()
+
+        self.assertEqual(
+            result.processed_key,
+            "incoming/1784190350000-1784190300000-earlier.webm",
+        )
+
+    def test_treats_legacy_object_keys_as_immediately_due(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            r2_client = FakeR2Client(
+                objects=[{"key": "incoming/1784003102726-old-recording.m4a", "last_modified": 100}]
+            )
+            worker = QueueWorker(
+                r2_client=r2_client,
+                player=FakePlayer(),
+                download_root=Path(temp_dir),
+                now_ms=lambda: 0,
+            )
+
+            result = worker.process_next()
+
+        self.assertEqual(result.status, "played")
+        self.assertEqual(result.processed_key, "incoming/1784003102726-old-recording.m4a")
+
 
 if __name__ == "__main__":
     unittest.main()

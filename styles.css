@@ -15,6 +15,10 @@
   box-sizing: border-box;
 }
 
+[hidden] {
+  display: none !important;
+}
+
 html,
 body {
   margin: 0;
@@ -95,6 +99,8 @@ body {
   width: min(100%, 48rem);
   margin-left: auto;
   padding: 1.5rem;
+  display: grid;
+  gap: 1.5rem;
   border: 1px solid var(--line);
   background: var(--bg-soft);
   backdrop-filter: blur(12px);
@@ -110,76 +116,6 @@ body {
   margin: 0.75rem 0 0;
   color: var(--muted);
   line-height: 1.6;
-}
-
-.stage-copy span {
-  color: var(--text);
-}
-
-.upload-form {
-  display: grid;
-  gap: 1rem;
-  margin-top: 1.75rem;
-}
-
-.recorder-card {
-  display: grid;
-  gap: 1rem;
-  margin-top: 1.75rem;
-  padding-top: 1.5rem;
-  border-top: 1px solid var(--line);
-}
-
-.file-picker {
-  display: grid;
-  gap: 0.4rem;
-  padding: 1.2rem 1.1rem;
-  border: 1px dashed rgba(31, 26, 23, 0.28);
-  cursor: pointer;
-  transition: transform 180ms ease, border-color 180ms ease, background 180ms ease;
-}
-
-.file-picker:hover {
-  transform: translateY(-1px);
-  border-color: var(--accent);
-  background: rgba(255, 255, 255, 0.46);
-}
-
-.file-picker-label {
-  font-size: 1.05rem;
-}
-
-.file-picker-hint {
-  color: var(--muted);
-  font-size: 0.96rem;
-}
-
-input[type="file"] {
-  position: absolute;
-  width: 0.1px;
-  height: 0.1px;
-  opacity: 0;
-  overflow: hidden;
-}
-
-.file-meta {
-  display: grid;
-  gap: 0.25rem;
-  padding-top: 0.25rem;
-}
-
-.file-name,
-.file-size {
-  margin: 0;
-}
-
-.file-name {
-  font-size: 1rem;
-}
-
-.file-size {
-  color: var(--muted);
-  font-size: 0.94rem;
 }
 
 .upload-button {
@@ -220,23 +156,15 @@ input[type="file"] {
   transition: transform 180ms ease, border-color 180ms ease, background 180ms ease, opacity 180ms ease;
 }
 
-.secondary-button:hover:not(:disabled),
-.upload-button.ghost:hover:not(:disabled) {
+.secondary-button:hover:not(:disabled) {
   transform: translateY(-1px);
   border-color: var(--accent);
   background: rgba(255, 255, 255, 0.95);
 }
 
-.secondary-button:disabled,
-.upload-button.ghost:disabled {
+.secondary-button:disabled {
   opacity: 0.55;
   cursor: not-allowed;
-}
-
-.upload-button.ghost {
-  background: transparent;
-  color: var(--accent-deep);
-  border: 1px solid rgba(199, 92, 52, 0.26);
 }
 
 .recorder-actions {
@@ -264,8 +192,98 @@ input[type="file"] {
   width: 100%;
 }
 
+.playback-panel {
+  min-width: 0;
+  margin: 0;
+  padding: 1.2rem;
+  border: 1px solid var(--line);
+}
+
+.playback-panel legend {
+  padding: 0 0.45rem;
+  font-size: 1.08rem;
+}
+
+.playback-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.playback-choice {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.7rem;
+  padding: 0.95rem;
+  border: 1px solid rgba(31, 26, 23, 0.14);
+  background: rgba(255, 255, 255, 0.42);
+  cursor: pointer;
+}
+
+.playback-choice:has(input:checked) {
+  border-color: var(--accent);
+  background: rgba(199, 92, 52, 0.08);
+}
+
+.playback-choice input {
+  margin: 0.2rem 0 0;
+  accent-color: var(--accent);
+}
+
+.playback-choice span {
+  display: grid;
+  gap: 0.3rem;
+}
+
+.playback-choice strong {
+  font-weight: 600;
+}
+
+.playback-choice small {
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.delay-fields {
+  display: grid;
+  gap: 0.6rem;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--line);
+}
+
+.delay-input-row {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+}
+
+.delay-input-row input {
+  width: min(100%, 14rem);
+  padding: 0.8rem 0.9rem;
+  border: 1px solid rgba(31, 26, 23, 0.2);
+  border-radius: 0;
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--text);
+  font: inherit;
+}
+
+.delay-input-row input:focus {
+  outline: 2px solid rgba(199, 92, 52, 0.32);
+  border-color: var(--accent);
+}
+
+.delay-input-row input[aria-invalid="true"] {
+  border-color: var(--error);
+}
+
+.delay-summary {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
 .status-panel {
-  margin-top: 1.5rem;
   padding-top: 1.25rem;
   border-top: 1px solid var(--line);
 }
@@ -325,5 +343,9 @@ input[type="file"] {
 
   .secondary-button {
     width: 100%;
+  }
+
+  .playback-options {
+    grid-template-columns: 1fr;
   }
 }

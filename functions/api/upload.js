@@ -1,7 +1,8 @@
 import {
-  buildObjectKey,
+  buildScheduledObjectKey,
   isAllowedAudioFile,
-  isAllowedFileSize
+  isAllowedFileSize,
+  normalizeDelaySeconds
 } from "../../src/shared/upload-policy.js";
 
 function json(data, status = 200) {
@@ -33,20 +34,31 @@ export async function onRequestPost(context) {
     return json({ ok: false, error: "FILE_TOO_LARGE" }, 413);
   }
 
-  const key = buildObjectKey(file.name);
+  const delaySeconds = normalizeDelaySeconds(formData.get("delaySeconds"));
+  if (delaySeconds === null) {
+    return json({ ok: false, error: "INVALID_DELAY" }, 400);
+  }
+
+  const uploadedAt = Date.now();
+  const playAt = uploadedAt + delaySeconds * 1000;
+  const key = buildScheduledObjectKey(file.name, playAt, uploadedAt);
 
   await context.env.AUDIO_UPLOADS.put(key, await file.arrayBuffer(), {
     httpMetadata: {
       contentType: file.type || "application/octet-stream"
     },
     customMetadata: {
-      originalName: file.name
+      originalName: file.name,
+      delaySeconds: String(delaySeconds),
+      playAt: String(playAt)
     }
   });
 
   return json({
     ok: true,
     key,
+    delaySeconds,
+    playAt,
     message: "UPLOAD_SUCCESS"
   });
 }
