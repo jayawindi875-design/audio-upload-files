@@ -3,10 +3,11 @@ export const VOLUME_CONFIG_KEY = "config/volume-control.json";
 export const DEFAULT_VOLUME_CONFIG = Object.freeze({
   enabled: true,
   mode: "farther_louder",
-  minDistanceMm: 200,
-  maxDistanceMm: 5000,
-  minVolumePercent: 20,
-  maxVolumePercent: 85
+  minDistanceMm: 400,
+  maxDistanceMm: 2500,
+  minVolumePercent: 15,
+  maxVolumePercent: 120,
+  sensitivity: 1.6
 });
 
 const MODES = new Set(["farther_louder", "nearer_louder"]);
@@ -14,6 +15,11 @@ const MODES = new Set(["farther_louder", "nearer_louder"]);
 function toInteger(value, fallback) {
   const parsed = Number(value);
   return Number.isInteger(parsed) ? parsed : fallback;
+}
+
+function toNumber(value, fallback) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
 }
 
 export function normalizeVolumeConfig(payload = {}) {
@@ -35,6 +41,10 @@ export function normalizeVolumeConfig(payload = {}) {
   );
   const [minVolumePercent, maxVolumePercent] = [rawMinVolume, rawMaxVolume].sort((a, b) => a - b);
   const mode = MODES.has(payload.mode) ? payload.mode : DEFAULT_VOLUME_CONFIG.mode;
+  const sensitivity = Math.max(
+    0.3,
+    Math.min(3, toNumber(payload.sensitivity, DEFAULT_VOLUME_CONFIG.sensitivity))
+  );
 
   return {
     enabled: payload.enabled !== false,
@@ -42,6 +52,7 @@ export function normalizeVolumeConfig(payload = {}) {
     minDistanceMm,
     maxDistanceMm,
     minVolumePercent,
-    maxVolumePercent
+    maxVolumePercent,
+    sensitivity
   };
 }

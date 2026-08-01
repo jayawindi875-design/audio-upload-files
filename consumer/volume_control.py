@@ -23,6 +23,13 @@ def _read_int(value, default: int) -> int:
         return default
 
 
+def _read_float(value, default: float) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
 def _read_bool(value, default: bool) -> bool:
     if value is None:
         return default
@@ -37,6 +44,7 @@ class VolumeControlConfig:
     max_distance_mm: int = 5000
     min_volume_percent: int = 20
     max_volume_percent: int = 85
+    sensitivity: float = 1.6
 
     @classmethod
     def from_dict(cls, payload: dict | None) -> "VolumeControlConfig":
@@ -48,6 +56,7 @@ class VolumeControlConfig:
             max_distance_mm=_read_int(payload.get("maxDistanceMm"), 5000),
             min_volume_percent=_read_int(payload.get("minVolumePercent"), 20),
             max_volume_percent=_read_int(payload.get("maxVolumePercent"), 85),
+            sensitivity=_read_float(payload.get("sensitivity"), 1.6),
         ).normalized()
 
     def normalized(self) -> "VolumeControlConfig":
@@ -57,6 +66,7 @@ class VolumeControlConfig:
         max_volume = max(0, min(150, self.max_volume_percent))
         low_volume, high_volume = sorted((min_volume, max_volume))
         mode = self.mode if self.mode in {MODE_FARTHER_LOUDER, MODE_NEARER_LOUDER} else MODE_FARTHER_LOUDER
+        sensitivity = max(0.3, min(3.0, float(self.sensitivity)))
 
         return VolumeControlConfig(
             enabled=self.enabled,
@@ -65,6 +75,7 @@ class VolumeControlConfig:
             max_distance_mm=max_distance,
             min_volume_percent=low_volume,
             max_volume_percent=high_volume,
+            sensitivity=sensitivity,
         )
 
 
@@ -72,6 +83,7 @@ def map_distance_to_volume_percent(distance_mm: int, config: VolumeControlConfig
     config = config.normalized()
     distance = max(config.min_distance_mm, min(config.max_distance_mm, int(distance_mm)))
     ratio = (distance - config.min_distance_mm) / (config.max_distance_mm - config.min_distance_mm)
+    ratio = 1 - ((1 - ratio) ** config.sensitivity)
 
     if config.mode == MODE_NEARER_LOUDER:
         ratio = 1 - ratio
@@ -82,10 +94,27 @@ def map_distance_to_volume_percent(distance_mm: int, config: VolumeControlConfig
     return int(round(volume))
 
 
+def filter_distances_for_volume(distances, config: VolumeControlConfig) -> list[int]:
+    config = config.normalized()
+    return [
+        int(distance)
+        for distance in distances
+        if config.min_distance_mm <= int(distance) <= config.max_distance_mm
+    ]
+
+
 class LidarDistanceReader:
-    def __init__(self, device: str = LIDAR_DEVICE, baudrate: int = LIDAR_BAUDRATE):
+    def __init__(
+        self,
+        device: str = LIDAR_DEVICE,
+        baudrate: int = LIDAR_BAUDRATE,
+        min_distance_mm: int = 1,
+        max_distance_mm: int = 12000,
+    ):
         self.device = device
         self.baudrate = baudrate
+        self.min_distance_mm = min_distance_mm
+        self.max_distance_mm = max_distance_mm
 
     def read_distances(self, stop_event: threading.Event):
         try:
@@ -130,7 +159,10 @@ class LidarDistanceReader:
                         distance = data[offset] * 256 + data[offset + 1]
                         intensity = data[offset + 2]
                         angle = (start_angle + angle_step * index) % 360
-                        if intensity >= MIN_VALID_INTENSITY:
+                        if (
+                            intensity >= MIN_VALID_INTENSITY
+                            and self.min_distance_mm <= distance <= self.max_distance_mm
+                        ):
                             all_valid_points.append((distance, angle))
 
                     if last_angle - start_angle > 100:
@@ -154,7 +186,10 @@ class LidarVolumeController:
         command_runner=subprocess.run,
     ):
         self.config = config.normalized()
-        self.distance_reader = distance_reader or LidarDistanceReader()
+        self.distance_reader = distance_reader or LidarDistanceReader(
+            min_distance_mm=self.config.min_distance_mm,
+            max_distance_mm=self.config.max_distance_mm,
+        )
         self.sink = sink
         self.command_runner = command_runner
         self.stop_event = threading.Event()

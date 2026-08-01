@@ -50,6 +50,7 @@ const elements = {
   maxDistance: document.getElementById("max-distance-mm"),
   minVolume: document.getElementById("min-volume-percent"),
   maxVolume: document.getElementById("max-volume-percent"),
+  sensitivity: document.getElementById("volume-sensitivity"),
   developerSave: document.getElementById("developer-save"),
   developerStatus: document.getElementById("developer-status"),
   testSongFile: document.getElementById("test-song-file"),
@@ -149,7 +150,8 @@ function getDeveloperConfigFormValue() {
     minDistanceMm: elements.minDistance.value,
     maxDistanceMm: elements.maxDistance.value,
     minVolumePercent: elements.minVolume.value,
-    maxVolumePercent: elements.maxVolume.value
+    maxVolumePercent: elements.maxVolume.value,
+    sensitivity: elements.sensitivity.value
   };
 }
 
@@ -163,6 +165,7 @@ function applyDeveloperConfigToForm(config) {
   elements.maxDistance.value = String(config.maxDistanceMm ?? 5000);
   elements.minVolume.value = String(config.minVolumePercent ?? 20);
   elements.maxVolume.value = String(config.maxVolumePercent ?? 85);
+  elements.sensitivity.value = String(config.sensitivity ?? 1.6);
 }
 
 async function loadDeveloperConfig() {

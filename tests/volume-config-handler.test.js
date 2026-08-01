@@ -45,7 +45,8 @@ test("stores normalized developer volume config", async () => {
       minDistanceMm: "300",
       maxDistanceMm: "2500",
       minVolumePercent: "90",
-      maxVolumePercent: "30"
+      maxVolumePercent: "30",
+      sensitivity: "8"
     })
   });
 
@@ -59,5 +60,6 @@ test("stores normalized developer volume config", async () => {
   assert.equal(stored.mode, "nearer_louder");
   assert.equal(stored.minVolumePercent, 30);
   assert.equal(stored.maxVolumePercent, 90);
+  assert.equal(stored.sensitivity, 3);
   assert.equal(env.calls[0].options.httpMetadata.contentType, "application/json");
 });

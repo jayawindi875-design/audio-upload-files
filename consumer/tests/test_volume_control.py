@@ -1,6 +1,10 @@
 import unittest
 
-from consumer.volume_control import VolumeControlConfig, map_distance_to_volume_percent
+from consumer.volume_control import (
+    VolumeControlConfig,
+    filter_distances_for_volume,
+    map_distance_to_volume_percent,
+)
 
 
 class VolumeControlTests(unittest.TestCase):
@@ -11,6 +15,7 @@ class VolumeControlTests(unittest.TestCase):
             min_volume_percent=20,
             max_volume_percent=80,
             mode="farther_louder",
+            sensitivity=1.0,
         )
 
         self.assertEqual(map_distance_to_volume_percent(200, config), 20)
@@ -24,6 +29,7 @@ class VolumeControlTests(unittest.TestCase):
             min_volume_percent=20,
             max_volume_percent=80,
             mode="nearer_louder",
+            sensitivity=1.0,
         )
 
         self.assertEqual(map_distance_to_volume_percent(200, config), 80)
@@ -52,6 +58,7 @@ class VolumeControlTests(unittest.TestCase):
                 "maxDistanceMm": "2500",
                 "minVolumePercent": "15",
                 "maxVolumePercent": "65",
+                "sensitivity": "1.8",
             }
         )
 
@@ -61,6 +68,36 @@ class VolumeControlTests(unittest.TestCase):
         self.assertEqual(config.max_distance_mm, 2500)
         self.assertEqual(config.min_volume_percent, 15)
         self.assertEqual(config.max_volume_percent, 65)
+        self.assertEqual(config.sensitivity, 1.8)
+
+    def test_filters_out_distances_outside_the_configured_window(self):
+        config = VolumeControlConfig(min_distance_mm=400, max_distance_mm=2500)
+
+        self.assertEqual(
+            filter_distances_for_volume([188, 221, 900, 2600], config),
+            [900],
+        )
+
+    def test_higher_sensitivity_makes_middle_distance_changes_more_obvious(self):
+        linear = VolumeControlConfig(
+            min_distance_mm=400,
+            max_distance_mm=2400,
+            min_volume_percent=20,
+            max_volume_percent=100,
+            mode="farther_louder",
+            sensitivity=1.0,
+        )
+        sensitive = VolumeControlConfig(
+            min_distance_mm=400,
+            max_distance_mm=2400,
+            min_volume_percent=20,
+            max_volume_percent=100,
+            mode="farther_louder",
+            sensitivity=2.0,
+        )
+
+        self.assertEqual(map_distance_to_volume_percent(1400, linear), 60)
+        self.assertEqual(map_distance_to_volume_percent(1400, sensitive), 80)
 
 
 if __name__ == "__main__":
