@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import glob
+import os
+from pathlib import Path
 import queue
 import subprocess
 import threading
@@ -10,6 +13,11 @@ import time
 MIN_VALID_INTENSITY = 30
 LIDAR_BAUDRATE = 230400
 LIDAR_DEVICE = "/dev/ttyACM0"
+LIDAR_DEVICE_PATTERNS = (
+    "/dev/serial/by-id/*",
+    "/dev/ttyACM*",
+    "/dev/ttyUSB*",
+)
 
 
 MODE_FARTHER_LOUDER = "farther_louder"
@@ -103,15 +111,32 @@ def filter_distances_for_volume(distances, config: VolumeControlConfig) -> list[
     ]
 
 
+def discover_lidar_device(
+    configured_device: str | None = None,
+    glob_fn=glob.glob,
+    path_exists_fn=Path.exists,
+) -> str | None:
+    configured_device = (configured_device or os.environ.get("LIDAR_DEVICE") or "").strip()
+    if configured_device:
+        return configured_device
+
+    for pattern in LIDAR_DEVICE_PATTERNS:
+        for candidate in sorted(glob_fn(pattern)):
+            if path_exists_fn(Path(candidate)):
+                return candidate
+
+    return LIDAR_DEVICE if path_exists_fn(Path(LIDAR_DEVICE)) else None
+
+
 class LidarDistanceReader:
     def __init__(
         self,
-        device: str = LIDAR_DEVICE,
+        device: str | None = None,
         baudrate: int = LIDAR_BAUDRATE,
         min_distance_mm: int = 1,
         max_distance_mm: int = 12000,
     ):
-        self.device = device
+        self.device = discover_lidar_device(device)
         self.baudrate = baudrate
         self.min_distance_mm = min_distance_mm
         self.max_distance_mm = max_distance_mm
@@ -121,6 +146,13 @@ class LidarDistanceReader:
             import serial
         except ImportError:
             print("[volume] pyserial is not installed; lidar volume control disabled")
+            return
+
+        if not self.device:
+            print(
+                "[volume] no lidar serial device found; checked "
+                + ", ".join(LIDAR_DEVICE_PATTERNS)
+            )
             return
 
         try:

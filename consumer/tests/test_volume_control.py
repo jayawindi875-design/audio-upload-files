@@ -1,7 +1,9 @@
 import unittest
+from unittest.mock import patch
 
 from consumer.volume_control import (
     VolumeControlConfig,
+    discover_lidar_device,
     filter_distances_for_volume,
     map_distance_to_volume_percent,
 )
@@ -98,6 +100,42 @@ class VolumeControlTests(unittest.TestCase):
 
         self.assertEqual(map_distance_to_volume_percent(1400, linear), 60)
         self.assertEqual(map_distance_to_volume_percent(1400, sensitive), 80)
+
+    def test_discovers_lidar_device_from_environment_override(self):
+        with patch.dict("os.environ", {"LIDAR_DEVICE": "/dev/custom-lidar"}):
+            self.assertEqual(discover_lidar_device(), "/dev/custom-lidar")
+
+    def test_discovers_first_existing_serial_device(self):
+        candidates = {
+            "/dev/serial/by-id/a-lidar": True,
+            "/dev/ttyACM0": True,
+            "/dev/ttyUSB0": True,
+        }
+
+        def fake_glob(pattern):
+            return {
+                "/dev/serial/by-id/*": ["/dev/serial/by-id/a-lidar"],
+                "/dev/ttyACM*": ["/dev/ttyACM0"],
+                "/dev/ttyUSB*": ["/dev/ttyUSB0"],
+            }.get(pattern, [])
+
+        def fake_exists(path):
+            return candidates.get(path.as_posix(), False)
+
+        with patch.dict("os.environ", {}, clear=True):
+            self.assertEqual(
+                discover_lidar_device(glob_fn=fake_glob, path_exists_fn=fake_exists),
+                "/dev/serial/by-id/a-lidar",
+            )
+
+    def test_returns_none_when_no_lidar_device_exists(self):
+        with patch.dict("os.environ", {}, clear=True):
+            self.assertIsNone(
+                discover_lidar_device(
+                    glob_fn=lambda pattern: [],
+                    path_exists_fn=lambda path: False,
+                )
+            )
 
 
 if __name__ == "__main__":
