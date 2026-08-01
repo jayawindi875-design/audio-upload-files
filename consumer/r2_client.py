@@ -1,18 +1,31 @@
 from pathlib import Path
 import json
+import time
 
 
 VOLUME_CONFIG_KEY = "config/volume-control.json"
 
 
 class R2QueueClient:
-    def __init__(self, endpoint_url: str, access_key_id: str, secret_access_key: str, bucket_name: str):
+    def __init__(
+        self,
+        endpoint_url: str,
+        access_key_id: str,
+        secret_access_key: str,
+        bucket_name: str,
+        volume_config_cache_seconds: float = 30,
+        clock=time.time,
+    ):
         try:
             import boto3
         except ImportError as exc:
             raise RuntimeError("boto3 is required to run the consumer.") from exc
 
         self.bucket_name = bucket_name
+        self.volume_config_cache_seconds = volume_config_cache_seconds
+        self._clock = clock
+        self._volume_config_cache = None
+        self._volume_config_cache_time = 0
         self.client = boto3.client(
             "s3",
             endpoint_url=endpoint_url,
@@ -49,6 +62,13 @@ class R2QueueClient:
         self.client.delete_object(Bucket=self.bucket_name, Key=source_key)
 
     def get_volume_config(self):
+        now = self._clock()
+        if (
+            self._volume_config_cache is not None
+            and now - self._volume_config_cache_time < self.volume_config_cache_seconds
+        ):
+            return self._volume_config_cache
+
         try:
             response = self.client.get_object(Bucket=self.bucket_name, Key=VOLUME_CONFIG_KEY)
         except Exception as exc:
@@ -59,4 +79,6 @@ class R2QueueClient:
             return None
 
         body = response["Body"].read().decode("utf-8")
-        return json.loads(body)
+        self._volume_config_cache = json.loads(body)
+        self._volume_config_cache_time = now
+        return self._volume_config_cache

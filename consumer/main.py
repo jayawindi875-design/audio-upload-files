@@ -23,18 +23,25 @@ def build_worker_from_env() -> QueueWorker:
     )
 
 
-def run_consumer(run_once: bool = False):
-    config = ConsumerConfig.from_env()
-    worker = build_worker_from_env()
-
+def run_consumer_loop(worker: QueueWorker, poll_interval_seconds: int, sleep_fn=time.sleep):
     while True:
         result = worker.process_next()
         print(f"[consumer] status={result.status} key={result.processed_key or '-'}")
 
-        if run_once:
-            return result
+        if result.status not in {"played", "failed"}:
+            sleep_fn(poll_interval_seconds)
 
-        time.sleep(config.poll_interval_seconds)
+
+def run_consumer(run_once: bool = False):
+    config = ConsumerConfig.from_env()
+    worker = build_worker_from_env()
+
+    if run_once:
+        result = worker.process_next()
+        print(f"[consumer] status={result.status} key={result.processed_key or '-'}")
+        return result
+
+    run_consumer_loop(worker, config.poll_interval_seconds)
 
 
 def parse_args():

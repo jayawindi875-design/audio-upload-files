@@ -4,6 +4,7 @@ import unittest
 from pathlib import Path
 
 from consumer.config import ConsumerConfig
+from consumer.main import run_consumer_loop
 from consumer.player import CommandPlayer, NoopPlayer, build_player
 
 
@@ -19,7 +20,7 @@ class RuntimeTests(unittest.TestCase):
                         "R2_SECRET_ACCESS_KEY": "def",
                         "R2_BUCKET": "audio-upload-files",
                         "CONSUMER_DOWNLOAD_ROOT": temp_dir,
-                        "CONSUMER_POLL_INTERVAL": "9",
+                        "CONSUMER_POLL_INTERVAL": "0.5",
                         "CONSUMER_DRY_RUN": "true",
                         "CONSUMER_SKIP_DOTENV": "true",
                     }
@@ -31,7 +32,7 @@ class RuntimeTests(unittest.TestCase):
                 os.environ.update(original_env)
 
         self.assertEqual(config.bucket_name, "audio-upload-files")
-        self.assertEqual(config.poll_interval_seconds, 9)
+        self.assertEqual(config.poll_interval_seconds, 0.5)
         self.assertEqual(config.download_root, Path(temp_dir))
         self.assertEqual(config.dry_run, True)
 
@@ -92,6 +93,39 @@ class RuntimeTests(unittest.TestCase):
         self.assertEqual(events[0], ("start", "nearer_louder"))
         self.assertEqual(events[-1], ("stop", "nearer_louder"))
         self.assertIn("test.mp3", events[1][1])
+
+    def test_consumer_loop_sleeps_only_when_no_file_was_played(self):
+        events = []
+
+        class FakeWorker:
+            def __init__(self):
+                self.statuses = iter(["played", "idle"])
+
+            def process_next(self):
+                status = next(self.statuses)
+                events.append(("process", status))
+
+                class Result:
+                    processed_key = "incoming/test.mp3" if status == "played" else ""
+
+                Result.status = status
+                return Result()
+
+        def fake_sleep(seconds):
+            events.append(("sleep", seconds))
+            raise KeyboardInterrupt
+
+        with self.assertRaises(KeyboardInterrupt):
+            run_consumer_loop(FakeWorker(), poll_interval_seconds=1, sleep_fn=fake_sleep)
+
+        self.assertEqual(
+            events,
+            [
+                ("process", "played"),
+                ("process", "idle"),
+                ("sleep", 1),
+            ],
+        )
 
 
 if __name__ == "__main__":

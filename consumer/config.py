@@ -52,7 +52,7 @@ class ConsumerConfig:
             download_root=Path(
                 os.environ.get("CONSUMER_DOWNLOAD_ROOT", "./runtime").strip() or "./runtime"
             ),
-            poll_interval_seconds=int(os.environ.get("CONSUMER_POLL_INTERVAL", "10")),
+            poll_interval_seconds=float(os.environ.get("CONSUMER_POLL_INTERVAL", "1")),
             player_command=os.environ.get("CONSUMER_PLAYER_COMMAND", "").strip(),
             dry_run=_read_bool_env("CONSUMER_DRY_RUN", default=False),
         )
