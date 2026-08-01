@@ -43,6 +43,15 @@ const elements = {
   delayInput: document.getElementById("delay-seconds"),
   delayUnit: document.getElementById("delay-unit"),
   delaySummary: document.getElementById("delay-summary"),
+  developerToggle: document.getElementById("developer-toggle"),
+  developerPanel: document.getElementById("developer-panel"),
+  developerMode: document.getElementById("volume-mode"),
+  minDistance: document.getElementById("min-distance-mm"),
+  maxDistance: document.getElementById("max-distance-mm"),
+  minVolume: document.getElementById("min-volume-percent"),
+  maxVolume: document.getElementById("max-volume-percent"),
+  developerSave: document.getElementById("developer-save"),
+  developerStatus: document.getElementById("developer-status"),
   statusPanel: document.getElementById("status-panel"),
   statusTitle: document.getElementById("status-title"),
   statusDetail: document.getElementById("status-detail"),
@@ -59,6 +68,7 @@ let mediaStream = null;
 let isRequestingMicrophone = false;
 let isRecording = false;
 let isUploading = false;
+let isSavingDeveloperConfig = false;
 
 function getStoredLanguage() {
   return window.localStorage.getItem(LANGUAGE_STORAGE_KEY) === "en" ? "en" : "zh";
@@ -103,6 +113,8 @@ function refreshControls() {
     input.disabled = isUploading;
   });
   elements.delayInput.disabled = isUploading || getPlaybackMode() !== "delayed";
+  elements.developerSave.disabled = isSavingDeveloperConfig;
+  elements.developerToggle.disabled = isSavingDeveloperConfig;
 }
 
 function updatePlaybackUi() {
@@ -116,6 +128,75 @@ function updatePlaybackUi() {
   elements.delaySummary.textContent = seconds === null
     ? copy.errors.invalidDelay
     : copy.playback.delayedSummary.replace("{seconds}", String(seconds));
+}
+
+function setDeveloperStatus(message, tone = "idle") {
+  elements.developerStatus.dataset.tone = tone;
+  elements.developerStatus.textContent = message;
+}
+
+function getDeveloperConfigFormValue() {
+  return {
+    enabled: true,
+    mode: elements.developerMode.value,
+    minDistanceMm: elements.minDistance.value,
+    maxDistanceMm: elements.maxDistance.value,
+    minVolumePercent: elements.minVolume.value,
+    maxVolumePercent: elements.maxVolume.value
+  };
+}
+
+function applyDeveloperConfigToForm(config) {
+  if (!config) {
+    return;
+  }
+
+  elements.developerMode.value = config.mode || "farther_louder";
+  elements.minDistance.value = String(config.minDistanceMm ?? 200);
+  elements.maxDistance.value = String(config.maxDistanceMm ?? 5000);
+  elements.minVolume.value = String(config.minVolumePercent ?? 20);
+  elements.maxVolume.value = String(config.maxVolumePercent ?? 85);
+}
+
+async function loadDeveloperConfig() {
+  try {
+    const response = await fetch("/api/volume-config");
+    const body = await response.json();
+    if (body?.ok && body.config) {
+      applyDeveloperConfigToForm(body.config);
+      setDeveloperStatus("Volume controls loaded.", "idle");
+    } else {
+      setDeveloperStatus("Volume controls not available yet.", "error");
+    }
+  } catch (error) {
+    setDeveloperStatus("Volume controls not available yet.", "error");
+  }
+}
+
+async function saveDeveloperConfig() {
+  try {
+    isSavingDeveloperConfig = true;
+    refreshControls();
+    setDeveloperStatus("Saving volume controls...", "idle");
+    const response = await fetch("/api/volume-config", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json"
+      },
+      body: JSON.stringify(getDeveloperConfigFormValue())
+    });
+    const body = await response.json();
+    if (!response.ok || !body?.ok) {
+      throw new Error("save failed");
+    }
+    applyDeveloperConfigToForm(body.config);
+    setDeveloperStatus("Volume controls saved.", "success");
+  } catch (error) {
+    setDeveloperStatus("Volume controls not saved.", "error");
+  } finally {
+    isSavingDeveloperConfig = false;
+    refreshControls();
+  }
 }
 
 function applyLanguage(language) {
@@ -324,6 +405,10 @@ elements.recordStopButton.addEventListener("click", () => {
 elements.recordUploadButton.addEventListener("click", uploadRecording);
 elements.playbackModeInputs.forEach((input) => input.addEventListener("change", updatePlaybackUi));
 elements.delayInput.addEventListener("input", updatePlaybackUi);
+elements.developerToggle.addEventListener("click", () => {
+  elements.developerPanel.hidden = !elements.developerPanel.hidden;
+});
+elements.developerSave.addEventListener("click", saveDeveloperConfig);
 elements.langToggle.addEventListener("click", () => {
   applyLanguage(currentLanguage === "zh" ? "en" : "zh");
 });
@@ -338,3 +423,4 @@ window.addEventListener("beforeunload", () => {
 applyLanguage(currentLanguage);
 updatePlaybackUi();
 refreshControls();
+loadDeveloperConfig();

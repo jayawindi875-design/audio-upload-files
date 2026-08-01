@@ -1,4 +1,8 @@
 from pathlib import Path
+import json
+
+
+VOLUME_CONFIG_KEY = "config/volume-control.json"
 
 
 class R2QueueClient:
@@ -43,3 +47,16 @@ class R2QueueClient:
             Key=destination_key,
         )
         self.client.delete_object(Bucket=self.bucket_name, Key=source_key)
+
+    def get_volume_config(self):
+        try:
+            response = self.client.get_object(Bucket=self.bucket_name, Key=VOLUME_CONFIG_KEY)
+        except Exception as exc:
+            response_code = getattr(exc, "response", {}).get("Error", {}).get("Code")
+            if response_code in {"NoSuchKey", "404"}:
+                return None
+            print(f"[volume] unable to read volume config: {exc}")
+            return None
+
+        body = response["Body"].read().decode("utf-8")
+        return json.loads(body)

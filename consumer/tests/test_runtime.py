@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 
 from consumer.config import ConsumerConfig
-from consumer.player import NoopPlayer, build_player
+from consumer.player import CommandPlayer, NoopPlayer, build_player
 
 
 class RuntimeTests(unittest.TestCase):
@@ -58,6 +58,40 @@ class RuntimeTests(unittest.TestCase):
         player = build_player(command="", dry_run=True)
 
         self.assertIsInstance(player, NoopPlayer)
+
+    def test_command_player_runs_lidar_volume_controller_around_playback(self):
+        events = []
+
+        class FakeController:
+            def __init__(self, config):
+                self.config = config
+
+            def start(self):
+                events.append(("start", self.config.mode))
+
+            def stop(self):
+                events.append(("stop", self.config.mode))
+
+        def fake_run(command, shell, check):
+            events.append(("play", command, shell, check))
+
+            class Completed:
+                returncode = 0
+
+            return Completed()
+
+        player = CommandPlayer(
+            "ffplay -nodisp -autoexit",
+            command_runner=fake_run,
+            volume_controller_factory=FakeController,
+        )
+
+        played = player.play(Path("/tmp/test.mp3"), volume_config={"mode": "nearer_louder"})
+
+        self.assertTrue(played)
+        self.assertEqual(events[0], ("start", "nearer_louder"))
+        self.assertEqual(events[-1], ("stop", "nearer_louder"))
+        self.assertIn("test.mp3", events[1][1])
 
 
 if __name__ == "__main__":

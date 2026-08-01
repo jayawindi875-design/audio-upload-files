@@ -6,14 +6,20 @@ from consumer.worker import QueueWorker
 
 
 class FakeR2Client:
-    def __init__(self, objects=None, fail_download=False):
+    def __init__(self, objects=None, fail_download=False, volume_config=None):
         self.objects = list(objects or [])
         self.download_calls = []
         self.move_calls = []
         self.fail_download = fail_download
+        self.volume_config = volume_config
+        self.volume_config_calls = 0
 
     def list_incoming_objects(self):
         return list(self.objects)
+
+    def get_volume_config(self):
+        self.volume_config_calls += 1
+        return self.volume_config
 
     def download_object(self, key, destination):
         self.download_calls.append((key, destination))
@@ -31,8 +37,8 @@ class FakePlayer:
         self.should_succeed = should_succeed
         self.play_calls = []
 
-    def play(self, file_path):
-        self.play_calls.append(file_path)
+    def play(self, file_path, volume_config=None):
+        self.play_calls.append((file_path, volume_config))
         return self.should_succeed
 
 
@@ -115,6 +121,25 @@ class QueueWorkerTests(unittest.TestCase):
 
         self.assertEqual(r2_client.move_calls, [])
         self.assertEqual(player.play_calls, [])
+
+    def test_passes_latest_volume_config_to_player(self):
+        volume_config = {"enabled": True, "mode": "nearer_louder"}
+        with tempfile.TemporaryDirectory() as temp_dir:
+            r2_client = FakeR2Client(
+                objects=[{"key": "incoming/100-song-a.mp3", "last_modified": 100}],
+                volume_config=volume_config,
+            )
+            player = FakePlayer()
+            worker = QueueWorker(
+                r2_client=r2_client,
+                player=player,
+                download_root=Path(temp_dir),
+            )
+
+            worker.process_next()
+
+        self.assertEqual(r2_client.volume_config_calls, 1)
+        self.assertEqual(player.play_calls[0][1], volume_config)
 
     def test_waits_without_downloading_when_all_recordings_are_scheduled_for_the_future(self):
         with tempfile.TemporaryDirectory() as temp_dir:

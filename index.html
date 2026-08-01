@@ -80,6 +80,41 @@
           </div>
         </fieldset>
 
+        <div class="developer-shell">
+          <button class="developer-toggle" id="developer-toggle" type="button">Developer</button>
+          <section class="developer-panel" id="developer-panel" hidden>
+            <div class="developer-grid">
+              <label class="developer-field">
+                <span>Direction</span>
+                <select id="volume-mode">
+                  <option value="farther_louder">Farther = louder</option>
+                  <option value="nearer_louder">Nearer = louder</option>
+                </select>
+              </label>
+              <label class="developer-field">
+                <span>Min distance (mm)</span>
+                <input id="min-distance-mm" type="number" min="1" step="1" value="200">
+              </label>
+              <label class="developer-field">
+                <span>Max distance (mm)</span>
+                <input id="max-distance-mm" type="number" min="2" step="1" value="5000">
+              </label>
+              <label class="developer-field">
+                <span>Min volume (%)</span>
+                <input id="min-volume-percent" type="number" min="0" max="150" step="1" value="20">
+              </label>
+              <label class="developer-field">
+                <span>Max volume (%)</span>
+                <input id="max-volume-percent" type="number" min="0" max="150" step="1" value="85">
+              </label>
+            </div>
+            <div class="developer-actions">
+              <button class="secondary-button" id="developer-save" type="button">Save volume settings</button>
+              <div class="developer-status" id="developer-status" aria-live="polite"></div>
+            </div>
+          </section>
+        </div>
+
         <button class="upload-button" id="record-upload-button" type="button" disabled>
           上传录音
         </button>

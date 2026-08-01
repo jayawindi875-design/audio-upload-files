@@ -56,7 +56,10 @@ class QueueWorker:
         local_path = self.download_root / "incoming" / file_name
 
         self.r2_client.download_object(source_key, local_path)
-        played_successfully = self.player.play(local_path)
+        volume_config = None
+        if hasattr(self.r2_client, "get_volume_config"):
+            volume_config = self.r2_client.get_volume_config()
+        played_successfully = self.player.play(local_path, volume_config=volume_config)
 
         destination_prefix = "played" if played_successfully else "failed"
         destination_key = f"{destination_prefix}/{file_name}"

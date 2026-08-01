@@ -1,0 +1,47 @@
+export const VOLUME_CONFIG_KEY = "config/volume-control.json";
+
+export const DEFAULT_VOLUME_CONFIG = Object.freeze({
+  enabled: true,
+  mode: "farther_louder",
+  minDistanceMm: 200,
+  maxDistanceMm: 5000,
+  minVolumePercent: 20,
+  maxVolumePercent: 85
+});
+
+const MODES = new Set(["farther_louder", "nearer_louder"]);
+
+function toInteger(value, fallback) {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) ? parsed : fallback;
+}
+
+export function normalizeVolumeConfig(payload = {}) {
+  const minDistanceMm = Math.max(
+    1,
+    toInteger(payload.minDistanceMm, DEFAULT_VOLUME_CONFIG.minDistanceMm)
+  );
+  const maxDistanceMm = Math.max(
+    minDistanceMm + 1,
+    toInteger(payload.maxDistanceMm, DEFAULT_VOLUME_CONFIG.maxDistanceMm)
+  );
+  const rawMinVolume = Math.max(
+    0,
+    Math.min(150, toInteger(payload.minVolumePercent, DEFAULT_VOLUME_CONFIG.minVolumePercent))
+  );
+  const rawMaxVolume = Math.max(
+    0,
+    Math.min(150, toInteger(payload.maxVolumePercent, DEFAULT_VOLUME_CONFIG.maxVolumePercent))
+  );
+  const [minVolumePercent, maxVolumePercent] = [rawMinVolume, rawMaxVolume].sort((a, b) => a - b);
+  const mode = MODES.has(payload.mode) ? payload.mode : DEFAULT_VOLUME_CONFIG.mode;
+
+  return {
+    enabled: payload.enabled !== false,
+    mode,
+    minDistanceMm,
+    maxDistanceMm,
+    minVolumePercent,
+    maxVolumePercent
+  };
+}
