@@ -1,0 +1,21 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+
+const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
+
+test("keeps developer controls behind a non-obvious trigger", () => {
+  assert.doesNotMatch(html, />Developer<\/button>/);
+  assert.match(html, /id="developer-toggle"/);
+  assert.match(html, /aria-label="Open developer controls"/);
+});
+
+test("keeps the test song uploader inside the developer panel", () => {
+  const panelStart = html.indexOf('id="developer-panel"');
+  const uploadInput = html.indexOf('id="test-song-file"');
+  const uploadButton = html.indexOf('id="test-song-upload"');
+
+  assert.ok(panelStart >= 0);
+  assert.ok(uploadInput > panelStart);
+  assert.ok(uploadButton > panelStart);
+});

@@ -81,7 +81,12 @@
         </fieldset>
 
         <div class="developer-shell">
-          <button class="developer-toggle" id="developer-toggle" type="button">Developer</button>
+          <button
+            class="developer-toggle"
+            id="developer-toggle"
+            type="button"
+            aria-label="Open developer controls"
+          ></button>
           <section class="developer-panel" id="developer-panel" hidden>
             <div class="developer-grid">
               <label class="developer-field">
@@ -111,6 +116,17 @@
             <div class="developer-actions">
               <button class="secondary-button" id="developer-save" type="button">Save volume settings</button>
               <div class="developer-status" id="developer-status" aria-live="polite"></div>
+            </div>
+            <div class="developer-test-upload">
+              <label class="developer-field">
+                <span>Test song</span>
+                <input id="test-song-file" type="file" accept=".mp3,.m4a,.wav,.mp4,.webm,.ogg,audio/*">
+              </label>
+              <label class="developer-field">
+                <span>Test delay (seconds)</span>
+                <input id="test-song-delay" type="number" min="0" max="604800" step="1" value="0">
+              </label>
+              <button class="secondary-button" id="test-song-upload" type="button">Upload test song</button>
             </div>
           </section>
         </div>

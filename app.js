@@ -52,6 +52,9 @@ const elements = {
   maxVolume: document.getElementById("max-volume-percent"),
   developerSave: document.getElementById("developer-save"),
   developerStatus: document.getElementById("developer-status"),
+  testSongFile: document.getElementById("test-song-file"),
+  testSongDelay: document.getElementById("test-song-delay"),
+  testSongUpload: document.getElementById("test-song-upload"),
   statusPanel: document.getElementById("status-panel"),
   statusTitle: document.getElementById("status-title"),
   statusDetail: document.getElementById("status-detail"),
@@ -69,6 +72,7 @@ let isRequestingMicrophone = false;
 let isRecording = false;
 let isUploading = false;
 let isSavingDeveloperConfig = false;
+let isUploadingTestSong = false;
 
 function getStoredLanguage() {
   return window.localStorage.getItem(LANGUAGE_STORAGE_KEY) === "en" ? "en" : "zh";
@@ -114,7 +118,10 @@ function refreshControls() {
   });
   elements.delayInput.disabled = isUploading || getPlaybackMode() !== "delayed";
   elements.developerSave.disabled = isSavingDeveloperConfig;
-  elements.developerToggle.disabled = isSavingDeveloperConfig;
+  elements.developerToggle.disabled = isSavingDeveloperConfig || isUploadingTestSong;
+  elements.testSongUpload.disabled = isUploadingTestSong;
+  elements.testSongFile.disabled = isUploadingTestSong;
+  elements.testSongDelay.disabled = isUploadingTestSong;
 }
 
 function updatePlaybackUi() {
@@ -195,6 +202,39 @@ async function saveDeveloperConfig() {
     setDeveloperStatus("Volume controls not saved.", "error");
   } finally {
     isSavingDeveloperConfig = false;
+    refreshControls();
+  }
+}
+
+async function uploadTestSong() {
+  const file = elements.testSongFile.files?.[0] || null;
+  const validationError = getClientValidationError(file, "en");
+  const delaySeconds = resolvePlaybackDelaySeconds(
+    elements.testSongDelay.value === "0" ? "immediate" : "delayed",
+    elements.testSongDelay.value
+  );
+
+  if (validationError) {
+    setDeveloperStatus(validationError, "error");
+    return;
+  }
+
+  if (delaySeconds === null) {
+    setDeveloperStatus("Delay must be 0 or a whole number from 1 to 604800 seconds.", "error");
+    elements.testSongDelay.focus();
+    return;
+  }
+
+  try {
+    isUploadingTestSong = true;
+    refreshControls();
+    setDeveloperStatus("Uploading test song...", "idle");
+    await uploadFile(file, delaySeconds);
+    setDeveloperStatus("Test song queued.", "success");
+  } catch (error) {
+    setDeveloperStatus(error.message, "error");
+  } finally {
+    isUploadingTestSong = false;
     refreshControls();
   }
 }
@@ -409,6 +449,7 @@ elements.developerToggle.addEventListener("click", () => {
   elements.developerPanel.hidden = !elements.developerPanel.hidden;
 });
 elements.developerSave.addEventListener("click", saveDeveloperConfig);
+elements.testSongUpload.addEventListener("click", uploadTestSong);
 elements.langToggle.addEventListener("click", () => {
   applyLanguage(currentLanguage === "zh" ? "en" : "zh");
 });
