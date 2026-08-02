@@ -59,7 +59,15 @@ class QueueWorker:
         volume_config = None
         if hasattr(self.r2_client, "get_volume_config"):
             volume_config = self.r2_client.get_volume_config()
-        played_successfully = self.player.play(local_path, volume_config=volume_config)
+        volume_status_reporter = None
+        if hasattr(self.r2_client, "put_volume_status"):
+            volume_status_reporter = self.r2_client.put_volume_status
+
+        played_successfully = self.player.play(
+            local_path,
+            volume_config=volume_config,
+            volume_status_reporter=volume_status_reporter,
+        )
 
         destination_prefix = "played" if played_successfully else "failed"
         destination_key = f"{destination_prefix}/{file_name}"

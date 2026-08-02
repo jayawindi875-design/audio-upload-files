@@ -19,3 +19,11 @@ test("keeps the test song uploader inside the developer panel", () => {
   assert.ok(uploadInput > panelStart);
   assert.ok(uploadButton > panelStart);
 });
+
+test("keeps the live volume debug readout inside the developer panel", () => {
+  const panelStart = html.indexOf('id="developer-panel"');
+  const readout = html.indexOf('id="volume-debug-current"');
+
+  assert.ok(panelStart >= 0);
+  assert.ok(readout > panelStart);
+});

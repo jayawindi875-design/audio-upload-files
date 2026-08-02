@@ -216,6 +216,8 @@ class LidarVolumeController:
         distance_reader: LidarDistanceReader | None = None,
         sink: str = "@DEFAULT_SINK@",
         command_runner=subprocess.run,
+        status_reporter=None,
+        clock=time.time,
     ):
         self.config = config.normalized()
         self.distance_reader = distance_reader or LidarDistanceReader(
@@ -224,6 +226,9 @@ class LidarVolumeController:
         )
         self.sink = sink
         self.command_runner = command_runner
+        self.status_reporter = status_reporter
+        self.clock = clock
+        self._last_status_report_time = None
         self.stop_event = threading.Event()
         self.thread = threading.Thread(target=self._run, daemon=True)
 
@@ -235,6 +240,7 @@ class LidarVolumeController:
         self.stop_event.set()
         if self.thread.is_alive():
             self.thread.join(timeout=1)
+        self._report_status({"active": False, "message": "playback_stopped"}, force=True)
 
     def _set_volume(self, volume_percent: int):
         self.command_runner(
@@ -242,7 +248,44 @@ class LidarVolumeController:
             check=False,
         )
 
+    def _report_status(self, payload: dict, force: bool = False):
+        if not self.status_reporter:
+            return
+
+        now = self.clock()
+        if (
+            not force
+            and self._last_status_report_time is not None
+            and now - self._last_status_report_time < 1
+        ):
+            return
+
+        self._last_status_report_time = now
+        status = {
+            "updatedAt": int(now * 1000),
+            "active": True,
+            "mode": self.config.mode,
+            "sink": self.sink,
+            **payload,
+        }
+
+        try:
+            self.status_reporter(status)
+        except Exception as exc:
+            print(f"[volume] unable to publish volume status: {exc}")
+
     def _run(self):
+        if hasattr(self.distance_reader, "device") and self.distance_reader.device is None:
+            self._report_status(
+                {
+                    "active": False,
+                    "volumePercent": None,
+                    "distanceMm": None,
+                    "message": "no_lidar_serial_device",
+                },
+                force=True,
+            )
+
         pending = queue.Queue(maxsize=1)
         for distance in self.distance_reader.read_distances(self.stop_event):
             if self.stop_event.is_set():
@@ -255,4 +298,10 @@ class LidarVolumeController:
                     pass
             pending.put(volume)
             self._set_volume(volume)
+            self._report_status({
+                "active": True,
+                "distanceMm": distance,
+                "volumePercent": volume,
+                "message": "volume_set",
+            })
             print(f"[volume] distance_mm={distance} volume={volume}% mode={self.config.mode}")

@@ -4,6 +4,7 @@ import time
 
 
 VOLUME_CONFIG_KEY = "config/volume-control.json"
+VOLUME_STATUS_KEY = "status/volume-control.json"
 
 
 class R2QueueClient:
@@ -82,3 +83,11 @@ class R2QueueClient:
         self._volume_config_cache = json.loads(body)
         self._volume_config_cache_time = now
         return self._volume_config_cache
+
+    def put_volume_status(self, status: dict):
+        self.client.put_object(
+            Bucket=self.bucket_name,
+            Key=VOLUME_STATUS_KEY,
+            Body=json.dumps(status),
+            ContentType="application/json",
+        )

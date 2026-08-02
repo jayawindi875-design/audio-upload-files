@@ -373,6 +373,46 @@ body {
   color: var(--error);
 }
 
+.volume-debug {
+  display: grid;
+  gap: 0.75rem;
+  padding: 0.9rem;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.42);
+}
+
+.volume-debug-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.volume-debug-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+
+.volume-debug-grid div {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.volume-debug-grid span {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.volume-debug-grid strong {
+  min-height: 1.4rem;
+  overflow-wrap: anywhere;
+  font-size: 0.98rem;
+}
+
 .status-panel {
   padding-top: 1.25rem;
   border-top: 1px solid var(--line);
@@ -445,5 +485,9 @@ body {
 
   .developer-test-upload {
     grid-template-columns: 1fr;
+  }
+
+  .volume-debug-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }

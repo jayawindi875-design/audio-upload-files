@@ -1,7 +1,7 @@
 import json
 import unittest
 
-from consumer.r2_client import R2QueueClient, VOLUME_CONFIG_KEY
+from consumer.r2_client import R2QueueClient, VOLUME_CONFIG_KEY, VOLUME_STATUS_KEY
 
 
 class FakeBody:
@@ -19,6 +19,9 @@ class FakeS3Client:
     def get_object(self, Bucket, Key):
         self.calls.append((Bucket, Key))
         return {"Body": FakeBody({"mode": "nearer_louder"})}
+
+    def put_object(self, Bucket, Key, Body, ContentType):
+        self.calls.append((Bucket, Key, json.loads(Body), ContentType))
 
 
 class R2ClientTests(unittest.TestCase):
@@ -38,6 +41,24 @@ class R2ClientTests(unittest.TestCase):
         self.assertEqual(first, {"mode": "nearer_louder"})
         self.assertEqual(second, {"mode": "nearer_louder"})
         self.assertEqual(fake_s3.calls, [("audio-upload-files", VOLUME_CONFIG_KEY)])
+
+    def test_puts_latest_volume_status_json(self):
+        fake_s3 = FakeS3Client()
+        client = R2QueueClient.__new__(R2QueueClient)
+        client.bucket_name = "audio-upload-files"
+        client.client = fake_s3
+
+        client.put_volume_status({
+            "active": True,
+            "distanceMm": 900,
+            "volumePercent": 73,
+            "mode": "farther_louder",
+        })
+
+        self.assertEqual(fake_s3.calls[0][0], "audio-upload-files")
+        self.assertEqual(fake_s3.calls[0][1], VOLUME_STATUS_KEY)
+        self.assertEqual(fake_s3.calls[0][2]["volumePercent"], 73)
+        self.assertEqual(fake_s3.calls[0][3], "application/json")
 
 
 if __name__ == "__main__":

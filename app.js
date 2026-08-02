@@ -53,6 +53,11 @@ const elements = {
   sensitivity: document.getElementById("volume-sensitivity"),
   developerSave: document.getElementById("developer-save"),
   developerStatus: document.getElementById("developer-status"),
+  volumeDebugCurrent: document.getElementById("volume-debug-current"),
+  volumeDebugDistance: document.getElementById("volume-debug-distance"),
+  volumeDebugMode: document.getElementById("volume-debug-mode"),
+  volumeDebugMessage: document.getElementById("volume-debug-message"),
+  volumeDebugUpdated: document.getElementById("volume-debug-updated"),
   testSongFile: document.getElementById("test-song-file"),
   testSongDelay: document.getElementById("test-song-delay"),
   testSongUpload: document.getElementById("test-song-upload"),
@@ -74,6 +79,7 @@ let isRecording = false;
 let isUploading = false;
 let isSavingDeveloperConfig = false;
 let isUploadingTestSong = false;
+let volumeStatusPollTimer = null;
 
 function getStoredLanguage() {
   return window.localStorage.getItem(LANGUAGE_STORAGE_KEY) === "en" ? "en" : "zh";
@@ -141,6 +147,59 @@ function updatePlaybackUi() {
 function setDeveloperStatus(message, tone = "idle") {
   elements.developerStatus.dataset.tone = tone;
   elements.developerStatus.textContent = message;
+}
+
+function formatDebugValue(value, suffix) {
+  return Number.isInteger(value) ? `${value}${suffix}` : `--${suffix}`;
+}
+
+function updateVolumeDebugReadout(status) {
+  const updatedAt = Number.isInteger(status?.updatedAt) ? new Date(status.updatedAt) : null;
+
+  elements.volumeDebugCurrent.textContent = formatDebugValue(status?.volumePercent, "%");
+  elements.volumeDebugDistance.textContent = formatDebugValue(status?.distanceMm, " mm");
+  elements.volumeDebugMode.textContent = status?.mode || "--";
+  elements.volumeDebugMessage.textContent = status?.message || (status?.active ? "active" : "idle");
+  elements.volumeDebugUpdated.textContent = updatedAt
+    ? `Updated ${updatedAt.toLocaleTimeString()}`
+    : "Waiting for Pi...";
+}
+
+async function refreshVolumeStatus() {
+  try {
+    const response = await fetch("/api/volume-status", { cache: "no-store" });
+    const body = await response.json();
+    if (!response.ok || !body?.ok) {
+      throw new Error("status unavailable");
+    }
+    updateVolumeDebugReadout(body.status);
+  } catch (error) {
+    updateVolumeDebugReadout({
+      active: false,
+      volumePercent: null,
+      distanceMm: null,
+      mode: "",
+      message: "status_unavailable",
+      updatedAt: null
+    });
+  }
+}
+
+function setDeveloperPanelOpen(open) {
+  elements.developerPanel.hidden = !open;
+
+  if (open) {
+    refreshVolumeStatus();
+    if (!volumeStatusPollTimer) {
+      volumeStatusPollTimer = window.setInterval(refreshVolumeStatus, 1000);
+    }
+    return;
+  }
+
+  if (volumeStatusPollTimer) {
+    window.clearInterval(volumeStatusPollTimer);
+    volumeStatusPollTimer = null;
+  }
 }
 
 function getDeveloperConfigFormValue() {
@@ -449,7 +508,7 @@ elements.recordUploadButton.addEventListener("click", uploadRecording);
 elements.playbackModeInputs.forEach((input) => input.addEventListener("change", updatePlaybackUi));
 elements.delayInput.addEventListener("input", updatePlaybackUi);
 elements.developerToggle.addEventListener("click", () => {
-  elements.developerPanel.hidden = !elements.developerPanel.hidden;
+  setDeveloperPanelOpen(elements.developerPanel.hidden);
 });
 elements.developerSave.addEventListener("click", saveDeveloperConfig);
 elements.testSongUpload.addEventListener("click", uploadTestSong);
@@ -458,6 +517,9 @@ elements.langToggle.addEventListener("click", () => {
 });
 
 window.addEventListener("beforeunload", () => {
+  if (volumeStatusPollTimer) {
+    window.clearInterval(volumeStatusPollTimer);
+  }
   mediaStream?.getTracks().forEach((track) => track.stop());
   if (recordedAudioUrl) {
     URL.revokeObjectURL(recordedAudioUrl);

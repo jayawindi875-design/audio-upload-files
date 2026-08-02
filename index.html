@@ -121,6 +121,30 @@
               <button class="secondary-button" id="developer-save" type="button">Save volume settings</button>
               <div class="developer-status" id="developer-status" aria-live="polite"></div>
             </div>
+            <div class="volume-debug" aria-live="polite">
+              <div class="volume-debug-head">
+                <span>Live volume debug</span>
+                <small id="volume-debug-updated">Waiting for Pi...</small>
+              </div>
+              <div class="volume-debug-grid">
+                <div>
+                  <span>Current volume</span>
+                  <strong id="volume-debug-current">--%</strong>
+                </div>
+                <div>
+                  <span>Distance</span>
+                  <strong id="volume-debug-distance">-- mm</strong>
+                </div>
+                <div>
+                  <span>Mode</span>
+                  <strong id="volume-debug-mode">--</strong>
+                </div>
+                <div>
+                  <span>Status</span>
+                  <strong id="volume-debug-message">--</strong>
+                </div>
+              </div>
+            </div>
             <div class="developer-test-upload">
               <label class="developer-field">
                 <span>Test song</span>

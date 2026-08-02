@@ -137,6 +137,41 @@ class VolumeControlTests(unittest.TestCase):
                 )
             )
 
+    def test_volume_controller_reports_status_at_one_second_rate(self):
+        from consumer.volume_control import LidarVolumeController
+
+        class FakeDistanceReader:
+            def read_distances(self, stop_event):
+                yield 400
+                yield 900
+                yield 1400
+
+        clock_values = iter([100.0, 100.2, 101.0])
+        status_updates = []
+
+        controller = LidarVolumeController(
+            VolumeControlConfig(
+                min_distance_mm=400,
+                max_distance_mm=1400,
+                min_volume_percent=10,
+                max_volume_percent=110,
+                sensitivity=1.0,
+            ),
+            distance_reader=FakeDistanceReader(),
+            command_runner=lambda command, check: None,
+            status_reporter=status_updates.append,
+            clock=lambda: next(clock_values),
+        )
+
+        controller._run()
+
+        self.assertEqual(
+            [item["volumePercent"] for item in status_updates],
+            [10, 110],
+        )
+        self.assertEqual(status_updates[0]["distanceMm"], 400)
+        self.assertEqual(status_updates[1]["distanceMm"], 1400)
+
 
 if __name__ == "__main__":
     unittest.main()

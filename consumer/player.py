@@ -5,7 +5,7 @@ from consumer.volume_control import LidarVolumeController, VolumeControlConfig
 
 
 class NoopPlayer:
-    def play(self, file_path: Path, volume_config=None) -> bool:
+    def play(self, file_path: Path, volume_config=None, volume_status_reporter=None) -> bool:
         print(f"[dry-run] skip playback for {file_path}")
         return True
 
@@ -23,12 +23,18 @@ class CommandPlayer:
         self.command_runner = command_runner
         self.volume_controller_factory = volume_controller_factory
 
-    def play(self, file_path: Path, volume_config=None) -> bool:
+    def play(self, file_path: Path, volume_config=None, volume_status_reporter=None) -> bool:
         controller = None
         if volume_config:
             controller_config = VolumeControlConfig.from_dict(volume_config)
             if controller_config.enabled:
-                controller = self.volume_controller_factory(controller_config)
+                try:
+                    controller = self.volume_controller_factory(
+                        controller_config,
+                        status_reporter=volume_status_reporter,
+                    )
+                except TypeError:
+                    controller = self.volume_controller_factory(controller_config)
 
         try:
             if controller:

@@ -1,4 +1,5 @@
 export const VOLUME_CONFIG_KEY = "config/volume-control.json";
+export const VOLUME_STATUS_KEY = "status/volume-control.json";
 
 export const DEFAULT_VOLUME_CONFIG = Object.freeze({
   enabled: true,
@@ -54,5 +55,22 @@ export function normalizeVolumeConfig(payload = {}) {
     minVolumePercent,
     maxVolumePercent,
     sensitivity
+  };
+}
+
+function nullableInteger(value) {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) ? parsed : null;
+}
+
+export function normalizeVolumeStatus(payload = {}) {
+  return {
+    active: payload.active === true,
+    distanceMm: nullableInteger(payload.distanceMm),
+    volumePercent: nullableInteger(payload.volumePercent),
+    mode: typeof payload.mode === "string" ? payload.mode : "",
+    sink: typeof payload.sink === "string" ? payload.sink : "",
+    message: typeof payload.message === "string" ? payload.message : "",
+    updatedAt: nullableInteger(payload.updatedAt)
   };
 }
