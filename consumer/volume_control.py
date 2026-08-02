@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 import glob
 import math
 import os
@@ -57,6 +57,10 @@ class VolumeControlConfig:
     angle_center_degrees: int = 90
     angle_width_degrees: int = 70
     distance_percentile: int = 50
+    baseline_revolutions: int = 3
+    baseline_bin_degrees: int = 5
+    change_threshold_mm: int = 200
+    stable_hold_seconds: int = 30
 
     @classmethod
     def from_dict(cls, payload: dict | None) -> "VolumeControlConfig":
@@ -72,6 +76,10 @@ class VolumeControlConfig:
             angle_center_degrees=_read_int(payload.get("angleCenterDegrees"), 90),
             angle_width_degrees=_read_int(payload.get("angleWidthDegrees"), 70),
             distance_percentile=_read_int(payload.get("distancePercentile"), 50),
+            baseline_revolutions=_read_int(payload.get("baselineRevolutions"), 3),
+            baseline_bin_degrees=_read_int(payload.get("baselineBinDegrees"), 5),
+            change_threshold_mm=_read_int(payload.get("changeThresholdMm"), 200),
+            stable_hold_seconds=_read_int(payload.get("stableHoldSeconds"), 30),
         ).normalized()
 
     def normalized(self) -> "VolumeControlConfig":
@@ -85,6 +93,10 @@ class VolumeControlConfig:
         angle_center = int(self.angle_center_degrees) % 360
         angle_width = max(1, min(360, int(self.angle_width_degrees)))
         distance_percentile = max(1, min(99, int(self.distance_percentile)))
+        baseline_revolutions = max(1, min(30, int(self.baseline_revolutions)))
+        baseline_bin_degrees = max(1, min(45, int(self.baseline_bin_degrees)))
+        change_threshold_mm = max(10, min(5000, int(self.change_threshold_mm)))
+        stable_hold_seconds = max(1, min(300, int(self.stable_hold_seconds)))
 
         return VolumeControlConfig(
             enabled=self.enabled,
@@ -97,7 +109,19 @@ class VolumeControlConfig:
             angle_center_degrees=angle_center,
             angle_width_degrees=angle_width,
             distance_percentile=distance_percentile,
+            baseline_revolutions=baseline_revolutions,
+            baseline_bin_degrees=baseline_bin_degrees,
+            change_threshold_mm=change_threshold_mm,
+            stable_hold_seconds=stable_hold_seconds,
         )
+
+
+@dataclass(frozen=True)
+class DistanceReading:
+    distance_mm: int | None = None
+    message: str = ""
+    changed_points: int = 0
+    baseline_points: int = 0
 
 
 def map_distance_to_volume_percent(distance_mm: int, config: VolumeControlConfig) -> int:
@@ -152,6 +176,96 @@ def select_distance_for_volume(points, config: VolumeControlConfig) -> int | Non
     return distances[percentile_index]
 
 
+def _median_distance(distances: list[int]) -> int:
+    values = sorted(distances)
+    if not values:
+        return 0
+    return values[len(values) // 2]
+
+
+class BaselineDistanceTracker:
+    def __init__(self, config: VolumeControlConfig, clock=time.time):
+        self.config = config.normalized()
+        self.clock = clock
+        self._baseline_samples = []
+        self._baseline_by_bin: dict[int, int] = {}
+        self._last_change_time = None
+
+    @property
+    def baseline_ready(self) -> bool:
+        return bool(self._baseline_by_bin)
+
+    def _bin_for_angle(self, angle: float) -> int:
+        return int(float(angle) % 360 // self.config.baseline_bin_degrees)
+
+    def _distances_by_bin(self, points) -> dict[int, list[int]]:
+        distances_by_bin: dict[int, list[int]] = {}
+        for distance, angle in points:
+            distance = int(distance)
+            if self.config.min_distance_mm <= distance <= self.config.max_distance_mm:
+                distances_by_bin.setdefault(self._bin_for_angle(angle), []).append(distance)
+        return distances_by_bin
+
+    def _build_baseline(self):
+        merged: dict[int, list[int]] = {}
+        for sample in self._baseline_samples:
+            for bin_index, distances in sample.items():
+                merged.setdefault(bin_index, []).extend(distances)
+
+        self._baseline_by_bin = {
+            bin_index: _median_distance(distances)
+            for bin_index, distances in merged.items()
+            if distances
+        }
+        self._last_change_time = self.clock()
+
+    def process_revolution(self, points) -> DistanceReading:
+        distances_by_bin = self._distances_by_bin(points)
+
+        if not self.baseline_ready:
+            self._baseline_samples.append(distances_by_bin)
+            if len(self._baseline_samples) >= self.config.baseline_revolutions:
+                self._build_baseline()
+                return DistanceReading(
+                    message="baseline_ready",
+                    baseline_points=len(self._baseline_by_bin),
+                )
+            return DistanceReading(
+                message="baseline_collecting",
+                baseline_points=len(distances_by_bin),
+            )
+
+        changed_points = []
+        for bin_index, distances in distances_by_bin.items():
+            current_distance = _median_distance(distances)
+            baseline_distance = self._baseline_by_bin.get(bin_index)
+            changed = (
+                baseline_distance is None
+                or abs(current_distance - baseline_distance) >= self.config.change_threshold_mm
+            )
+            if changed:
+                angle = (bin_index + 0.5) * self.config.baseline_bin_degrees
+                changed_points.append((current_distance, angle % 360))
+
+        if changed_points:
+            self._last_change_time = self.clock()
+            baseline_config = replace(self.config, angle_width_degrees=360)
+            return DistanceReading(
+                distance_mm=select_distance_for_volume(changed_points, baseline_config),
+                message="baseline_changed",
+                changed_points=len(changed_points),
+                baseline_points=len(self._baseline_by_bin),
+            )
+
+        now = self.clock()
+        stable_for = now - self._last_change_time if self._last_change_time is not None else 0
+        message = "baseline_stable" if stable_for >= self.config.stable_hold_seconds else "baseline_unchanged"
+        return DistanceReading(
+            message=message,
+            baseline_points=len(self._baseline_by_bin),
+        )
+
+
 def discover_lidar_device(
     configured_device: str | None = None,
     glob_fn=glob.glob,
@@ -179,6 +293,10 @@ class LidarDistanceReader:
         angle_center_degrees: int = 90,
         angle_width_degrees: int = 70,
         distance_percentile: int = 50,
+        baseline_revolutions: int = 3,
+        baseline_bin_degrees: int = 5,
+        change_threshold_mm: int = 200,
+        stable_hold_seconds: int = 30,
     ):
         self.device = discover_lidar_device(device)
         self.baudrate = baudrate
@@ -187,6 +305,17 @@ class LidarDistanceReader:
         self.angle_center_degrees = angle_center_degrees
         self.angle_width_degrees = angle_width_degrees
         self.distance_percentile = distance_percentile
+        self.config = VolumeControlConfig(
+            min_distance_mm=min_distance_mm,
+            max_distance_mm=max_distance_mm,
+            angle_center_degrees=angle_center_degrees,
+            angle_width_degrees=angle_width_degrees,
+            distance_percentile=distance_percentile,
+            baseline_revolutions=baseline_revolutions,
+            baseline_bin_degrees=baseline_bin_degrees,
+            change_threshold_mm=change_threshold_mm,
+            stable_hold_seconds=stable_hold_seconds,
+        ).normalized()
 
     def read_distances(self, stop_event: threading.Event):
         try:
@@ -211,6 +340,7 @@ class LidarDistanceReader:
         last_angle = 0
         circle_count = 0
         all_valid_points = []
+        baseline_tracker = BaselineDistanceTracker(self.config)
 
         with ser:
             while not stop_event.is_set():
@@ -247,18 +377,7 @@ class LidarDistanceReader:
                     if last_angle - start_angle > 100:
                         circle_count += 1
                         if circle_count % 3 == 0 and all_valid_points:
-                            selected_distance = select_distance_for_volume(
-                                all_valid_points,
-                                VolumeControlConfig(
-                                    min_distance_mm=self.min_distance_mm,
-                                    max_distance_mm=self.max_distance_mm,
-                                    angle_center_degrees=self.angle_center_degrees,
-                                    angle_width_degrees=self.angle_width_degrees,
-                                    distance_percentile=self.distance_percentile,
-                                ),
-                            )
-                            if selected_distance is not None:
-                                yield selected_distance
+                            yield baseline_tracker.process_revolution(all_valid_points)
                             all_valid_points.clear()
                     last_angle = start_angle
                 except Exception as exc:
@@ -283,6 +402,10 @@ class LidarVolumeController:
             angle_center_degrees=self.config.angle_center_degrees,
             angle_width_degrees=self.config.angle_width_degrees,
             distance_percentile=self.config.distance_percentile,
+            baseline_revolutions=self.config.baseline_revolutions,
+            baseline_bin_degrees=self.config.baseline_bin_degrees,
+            change_threshold_mm=self.config.change_threshold_mm,
+            stable_hold_seconds=self.config.stable_hold_seconds,
         )
         self.sink = sink
         self.command_runner = command_runner
@@ -347,9 +470,30 @@ class LidarVolumeController:
             )
 
         pending = queue.Queue(maxsize=1)
-        for distance in self.distance_reader.read_distances(self.stop_event):
+        for reading in self.distance_reader.read_distances(self.stop_event):
             if self.stop_event.is_set():
                 return
+            if isinstance(reading, DistanceReading):
+                if reading.distance_mm is None:
+                    self._report_status({
+                        "active": True,
+                        "distanceMm": None,
+                        "volumePercent": None,
+                        "message": reading.message,
+                        "changedPoints": reading.changed_points,
+                        "baselinePoints": reading.baseline_points,
+                    })
+                    continue
+                distance = reading.distance_mm
+                message = reading.message or "volume_set"
+                changed_points = reading.changed_points
+                baseline_points = reading.baseline_points
+            else:
+                distance = int(reading)
+                message = "volume_set"
+                changed_points = 0
+                baseline_points = 0
+
             volume = map_distance_to_volume_percent(distance, self.config)
             if pending.full():
                 try:
@@ -362,6 +506,8 @@ class LidarVolumeController:
                 "active": True,
                 "distanceMm": distance,
                 "volumePercent": volume,
-                "message": "volume_set",
+                "message": message,
+                "changedPoints": changed_points,
+                "baselinePoints": baseline_points,
             })
             print(f"[volume] distance_mm={distance} volume={volume}% mode={self.config.mode}")

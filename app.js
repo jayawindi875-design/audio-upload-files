@@ -51,15 +51,18 @@ const elements = {
   minVolume: document.getElementById("min-volume-percent"),
   maxVolume: document.getElementById("max-volume-percent"),
   sensitivity: document.getElementById("volume-sensitivity"),
-  angleCenter: document.getElementById("angle-center-degrees"),
-  angleWidth: document.getElementById("angle-width-degrees"),
-  distancePercentile: document.getElementById("distance-percentile"),
+  baselineRevolutions: document.getElementById("baseline-revolutions"),
+  baselineBin: document.getElementById("baseline-bin-degrees"),
+  changeThreshold: document.getElementById("change-threshold-mm"),
+  stableHold: document.getElementById("stable-hold-seconds"),
   developerSave: document.getElementById("developer-save"),
   developerStatus: document.getElementById("developer-status"),
   volumeDebugCurrent: document.getElementById("volume-debug-current"),
   volumeDebugDistance: document.getElementById("volume-debug-distance"),
   volumeDebugMode: document.getElementById("volume-debug-mode"),
   volumeDebugMessage: document.getElementById("volume-debug-message"),
+  volumeDebugChanged: document.getElementById("volume-debug-changed"),
+  volumeDebugBaseline: document.getElementById("volume-debug-baseline"),
   volumeDebugUpdated: document.getElementById("volume-debug-updated"),
   testSongFile: document.getElementById("test-song-file"),
   testSongDelay: document.getElementById("test-song-delay"),
@@ -163,6 +166,12 @@ function updateVolumeDebugReadout(status) {
   elements.volumeDebugDistance.textContent = formatDebugValue(status?.distanceMm, " mm");
   elements.volumeDebugMode.textContent = status?.mode || "--";
   elements.volumeDebugMessage.textContent = status?.message || (status?.active ? "active" : "idle");
+  elements.volumeDebugChanged.textContent = Number.isInteger(status?.changedPoints)
+    ? String(status.changedPoints)
+    : "--";
+  elements.volumeDebugBaseline.textContent = Number.isInteger(status?.baselinePoints)
+    ? String(status.baselinePoints)
+    : "--";
   elements.volumeDebugUpdated.textContent = updatedAt
     ? `Updated ${updatedAt.toLocaleTimeString()}`
     : "Waiting for Pi...";
@@ -214,9 +223,10 @@ function getDeveloperConfigFormValue() {
     minVolumePercent: elements.minVolume.value,
     maxVolumePercent: elements.maxVolume.value,
     sensitivity: elements.sensitivity.value,
-    angleCenterDegrees: elements.angleCenter.value,
-    angleWidthDegrees: elements.angleWidth.value,
-    distancePercentile: elements.distancePercentile.value
+    baselineRevolutions: elements.baselineRevolutions.value,
+    baselineBinDegrees: elements.baselineBin.value,
+    changeThresholdMm: elements.changeThreshold.value,
+    stableHoldSeconds: elements.stableHold.value
   };
 }
 
@@ -231,9 +241,10 @@ function applyDeveloperConfigToForm(config) {
   elements.minVolume.value = String(config.minVolumePercent ?? 20);
   elements.maxVolume.value = String(config.maxVolumePercent ?? 85);
   elements.sensitivity.value = String(config.sensitivity ?? 1.6);
-  elements.angleCenter.value = String(config.angleCenterDegrees ?? 90);
-  elements.angleWidth.value = String(config.angleWidthDegrees ?? 70);
-  elements.distancePercentile.value = String(config.distancePercentile ?? 50);
+  elements.baselineRevolutions.value = String(config.baselineRevolutions ?? 3);
+  elements.baselineBin.value = String(config.baselineBinDegrees ?? 5);
+  elements.changeThreshold.value = String(config.changeThresholdMm ?? 200);
+  elements.stableHold.value = String(config.stableHoldSeconds ?? 30);
 }
 
 async function loadDeveloperConfig() {

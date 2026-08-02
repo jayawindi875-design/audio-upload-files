@@ -11,7 +11,11 @@ export const DEFAULT_VOLUME_CONFIG = Object.freeze({
   sensitivity: 1.6,
   angleCenterDegrees: 90,
   angleWidthDegrees: 70,
-  distancePercentile: 50
+  distancePercentile: 50,
+  baselineRevolutions: 3,
+  baselineBinDegrees: 5,
+  changeThresholdMm: 200,
+  stableHoldSeconds: 30
 });
 
 const MODES = new Set(["farther_louder", "nearer_louder"]);
@@ -60,6 +64,22 @@ export function normalizeVolumeConfig(payload = {}) {
     1,
     Math.min(99, toInteger(payload.distancePercentile, DEFAULT_VOLUME_CONFIG.distancePercentile))
   );
+  const baselineRevolutions = Math.max(
+    1,
+    Math.min(30, toInteger(payload.baselineRevolutions, DEFAULT_VOLUME_CONFIG.baselineRevolutions))
+  );
+  const baselineBinDegrees = Math.max(
+    1,
+    Math.min(45, toInteger(payload.baselineBinDegrees, DEFAULT_VOLUME_CONFIG.baselineBinDegrees))
+  );
+  const changeThresholdMm = Math.max(
+    10,
+    Math.min(5000, toInteger(payload.changeThresholdMm, DEFAULT_VOLUME_CONFIG.changeThresholdMm))
+  );
+  const stableHoldSeconds = Math.max(
+    1,
+    Math.min(300, toInteger(payload.stableHoldSeconds, DEFAULT_VOLUME_CONFIG.stableHoldSeconds))
+  );
 
   return {
     enabled: payload.enabled !== false,
@@ -71,7 +91,11 @@ export function normalizeVolumeConfig(payload = {}) {
     sensitivity,
     angleCenterDegrees,
     angleWidthDegrees,
-    distancePercentile
+    distancePercentile,
+    baselineRevolutions,
+    baselineBinDegrees,
+    changeThresholdMm,
+    stableHoldSeconds
   };
 }
 
@@ -88,6 +112,8 @@ export function normalizeVolumeStatus(payload = {}) {
     mode: typeof payload.mode === "string" ? payload.mode : "",
     sink: typeof payload.sink === "string" ? payload.sink : "",
     message: typeof payload.message === "string" ? payload.message : "",
+    changedPoints: nullableInteger(payload.changedPoints),
+    baselinePoints: nullableInteger(payload.baselinePoints),
     updatedAt: nullableInteger(payload.updatedAt)
   };
 }

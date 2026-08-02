@@ -49,7 +49,11 @@ test("stores normalized developer volume config", async () => {
       sensitivity: "8",
       angleCenterDegrees: "90",
       angleWidthDegrees: "50",
-      distancePercentile: "40"
+      distancePercentile: "40",
+      baselineRevolutions: "4",
+      baselineBinDegrees: "5",
+      changeThresholdMm: "180",
+      stableHoldSeconds: "30"
     })
   });
 
@@ -67,5 +71,9 @@ test("stores normalized developer volume config", async () => {
   assert.equal(stored.angleCenterDegrees, 90);
   assert.equal(stored.angleWidthDegrees, 50);
   assert.equal(stored.distancePercentile, 40);
+  assert.equal(stored.baselineRevolutions, 4);
+  assert.equal(stored.baselineBinDegrees, 5);
+  assert.equal(stored.changeThresholdMm, 180);
+  assert.equal(stored.stableHoldSeconds, 30);
   assert.equal(env.calls[0].options.httpMetadata.contentType, "application/json");
 });

@@ -2,6 +2,8 @@ import unittest
 from unittest.mock import patch
 
 from consumer.volume_control import (
+    BaselineDistanceTracker,
+    DistanceReading,
     VolumeControlConfig,
     discover_lidar_device,
     filter_distances_for_volume,
@@ -79,12 +81,69 @@ class VolumeControlTests(unittest.TestCase):
                 "angleCenterDegrees": "90",
                 "angleWidthDegrees": "50",
                 "distancePercentile": "40",
+                "baselineRevolutions": "2",
+                "baselineBinDegrees": "10",
+                "changeThresholdMm": "180",
+                "stableHoldSeconds": "30",
             }
         )
 
         self.assertEqual(config.angle_center_degrees, 90)
         self.assertEqual(config.angle_width_degrees, 50)
         self.assertEqual(config.distance_percentile, 40)
+        self.assertEqual(config.baseline_revolutions, 2)
+        self.assertEqual(config.baseline_bin_degrees, 10)
+        self.assertEqual(config.change_threshold_mm, 180)
+        self.assertEqual(config.stable_hold_seconds, 30)
+
+    def test_baseline_tracker_collects_then_detects_changed_obstacle(self):
+        config = VolumeControlConfig(
+            min_distance_mm=400,
+            max_distance_mm=2500,
+            baseline_revolutions=2,
+            baseline_bin_degrees=10,
+            change_threshold_mm=200,
+            stable_hold_seconds=30,
+        )
+        tracker = BaselineDistanceTracker(config, clock=lambda: 100)
+
+        self.assertEqual(
+            tracker.process_revolution([(1000, 0), (1200, 90), (1400, 180)]).message,
+            "baseline_collecting",
+        )
+        self.assertEqual(
+            tracker.process_revolution([(1000, 0), (1200, 90), (1400, 180)]).message,
+            "baseline_ready",
+        )
+
+        reading = tracker.process_revolution([(1000, 0), (700, 90), (1400, 180)])
+
+        self.assertIsInstance(reading, DistanceReading)
+        self.assertEqual(reading.distance_mm, 700)
+        self.assertEqual(reading.message, "baseline_changed")
+
+    def test_baseline_tracker_holds_volume_after_static_scene(self):
+        config = VolumeControlConfig(
+            min_distance_mm=400,
+            max_distance_mm=2500,
+            baseline_revolutions=1,
+            baseline_bin_degrees=10,
+            change_threshold_mm=200,
+            stable_hold_seconds=30,
+        )
+        times = iter([0, 5, 35, 36])
+        tracker = BaselineDistanceTracker(config, clock=lambda: next(times))
+
+        tracker.process_revolution([(1000, 0), (1200, 90)])
+        self.assertIsNone(tracker.process_revolution([(1010, 0), (1210, 90)]).distance_mm)
+        self.assertEqual(
+            tracker.process_revolution([(1010, 0), (1210, 90)]).message,
+            "baseline_stable",
+        )
+        self.assertEqual(
+            tracker.process_revolution([(1000, 0), (800, 90)]).distance_mm,
+            800,
+        )
 
     def test_filters_out_distances_outside_the_configured_window(self):
         config = VolumeControlConfig(min_distance_mm=400, max_distance_mm=2500)
@@ -205,10 +264,10 @@ class VolumeControlTests(unittest.TestCase):
         class FakeDistanceReader:
             def read_distances(self, stop_event):
                 yield 400
-                yield 900
+                yield DistanceReading(distance_mm=None, message="baseline_stable")
                 yield 1400
 
-        clock_values = iter([100.0, 100.2, 101.0])
+        clock_values = iter([100.0, 100.2, 101.0, 102.0])
         status_updates = []
 
         controller = LidarVolumeController(
