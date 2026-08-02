@@ -8,7 +8,10 @@ export const DEFAULT_VOLUME_CONFIG = Object.freeze({
   maxDistanceMm: 2500,
   minVolumePercent: 15,
   maxVolumePercent: 120,
-  sensitivity: 1.6
+  sensitivity: 1.6,
+  angleCenterDegrees: 90,
+  angleWidthDegrees: 70,
+  distancePercentile: 50
 });
 
 const MODES = new Set(["farther_louder", "nearer_louder"]);
@@ -46,6 +49,17 @@ export function normalizeVolumeConfig(payload = {}) {
     0.3,
     Math.min(3, toNumber(payload.sensitivity, DEFAULT_VOLUME_CONFIG.sensitivity))
   );
+  const angleCenterDegrees = (
+    toInteger(payload.angleCenterDegrees, DEFAULT_VOLUME_CONFIG.angleCenterDegrees) % 360 + 360
+  ) % 360;
+  const angleWidthDegrees = Math.max(
+    1,
+    Math.min(360, toInteger(payload.angleWidthDegrees, DEFAULT_VOLUME_CONFIG.angleWidthDegrees))
+  );
+  const distancePercentile = Math.max(
+    1,
+    Math.min(99, toInteger(payload.distancePercentile, DEFAULT_VOLUME_CONFIG.distancePercentile))
+  );
 
   return {
     enabled: payload.enabled !== false,
@@ -54,7 +68,10 @@ export function normalizeVolumeConfig(payload = {}) {
     maxDistanceMm,
     minVolumePercent,
     maxVolumePercent,
-    sensitivity
+    sensitivity,
+    angleCenterDegrees,
+    angleWidthDegrees,
+    distancePercentile
   };
 }
 

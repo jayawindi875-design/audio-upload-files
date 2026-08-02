@@ -27,3 +27,15 @@ test("keeps the live volume debug readout inside the developer panel", () => {
   assert.ok(panelStart >= 0);
   assert.ok(readout > panelStart);
 });
+
+test("keeps radar selection controls inside the developer panel", () => {
+  const panelStart = html.indexOf('id="developer-panel"');
+  const angleCenter = html.indexOf('id="angle-center-degrees"');
+  const angleWidth = html.indexOf('id="angle-width-degrees"');
+  const percentile = html.indexOf('id="distance-percentile"');
+
+  assert.ok(panelStart >= 0);
+  assert.ok(angleCenter > panelStart);
+  assert.ok(angleWidth > panelStart);
+  assert.ok(percentile > panelStart);
+});

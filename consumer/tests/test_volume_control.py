@@ -6,6 +6,7 @@ from consumer.volume_control import (
     discover_lidar_device,
     filter_distances_for_volume,
     map_distance_to_volume_percent,
+    select_distance_for_volume,
 )
 
 
@@ -72,6 +73,19 @@ class VolumeControlTests(unittest.TestCase):
         self.assertEqual(config.max_volume_percent, 65)
         self.assertEqual(config.sensitivity, 1.8)
 
+    def test_builds_radar_selection_config_from_developer_payload(self):
+        config = VolumeControlConfig.from_dict(
+            {
+                "angleCenterDegrees": "90",
+                "angleWidthDegrees": "50",
+                "distancePercentile": "40",
+            }
+        )
+
+        self.assertEqual(config.angle_center_degrees, 90)
+        self.assertEqual(config.angle_width_degrees, 50)
+        self.assertEqual(config.distance_percentile, 40)
+
     def test_filters_out_distances_outside_the_configured_window(self):
         config = VolumeControlConfig(min_distance_mm=400, max_distance_mm=2500)
 
@@ -79,6 +93,54 @@ class VolumeControlTests(unittest.TestCase):
             filter_distances_for_volume([188, 221, 900, 2600], config),
             [900],
         )
+
+    def test_selects_stable_distance_inside_angle_window(self):
+        config = VolumeControlConfig(
+            min_distance_mm=400,
+            max_distance_mm=2500,
+            angle_center_degrees=90,
+            angle_width_degrees=40,
+            distance_percentile=50,
+        )
+
+        self.assertEqual(
+            select_distance_for_volume(
+                [
+                    (430, 15),
+                    (900, 75),
+                    (1100, 90),
+                    (1300, 105),
+                    (2100, 180),
+                ],
+                config,
+            ),
+            1100,
+        )
+
+    def test_angle_window_wraps_across_zero_degrees(self):
+        config = VolumeControlConfig(
+            min_distance_mm=400,
+            max_distance_mm=2500,
+            angle_center_degrees=0,
+            angle_width_degrees=40,
+            distance_percentile=50,
+        )
+
+        self.assertEqual(
+            select_distance_for_volume([(800, 350), (1000, 5), (2200, 90)], config),
+            1000,
+        )
+
+    def test_falls_back_to_full_distance_window_when_angle_window_is_empty(self):
+        config = VolumeControlConfig(
+            min_distance_mm=400,
+            max_distance_mm=2500,
+            angle_center_degrees=0,
+            angle_width_degrees=20,
+            distance_percentile=50,
+        )
+
+        self.assertEqual(select_distance_for_volume([(900, 90), (1300, 120)], config), 1300)
 
     def test_higher_sensitivity_makes_middle_distance_changes_more_obvious(self):
         linear = VolumeControlConfig(

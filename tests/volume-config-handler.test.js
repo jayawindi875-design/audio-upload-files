@@ -46,7 +46,10 @@ test("stores normalized developer volume config", async () => {
       maxDistanceMm: "2500",
       minVolumePercent: "90",
       maxVolumePercent: "30",
-      sensitivity: "8"
+      sensitivity: "8",
+      angleCenterDegrees: "90",
+      angleWidthDegrees: "50",
+      distancePercentile: "40"
     })
   });
 
@@ -61,5 +64,8 @@ test("stores normalized developer volume config", async () => {
   assert.equal(stored.minVolumePercent, 30);
   assert.equal(stored.maxVolumePercent, 90);
   assert.equal(stored.sensitivity, 3);
+  assert.equal(stored.angleCenterDegrees, 90);
+  assert.equal(stored.angleWidthDegrees, 50);
+  assert.equal(stored.distancePercentile, 40);
   assert.equal(env.calls[0].options.httpMetadata.contentType, "application/json");
 });

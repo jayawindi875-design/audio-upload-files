@@ -51,6 +51,9 @@ const elements = {
   minVolume: document.getElementById("min-volume-percent"),
   maxVolume: document.getElementById("max-volume-percent"),
   sensitivity: document.getElementById("volume-sensitivity"),
+  angleCenter: document.getElementById("angle-center-degrees"),
+  angleWidth: document.getElementById("angle-width-degrees"),
+  distancePercentile: document.getElementById("distance-percentile"),
   developerSave: document.getElementById("developer-save"),
   developerStatus: document.getElementById("developer-status"),
   volumeDebugCurrent: document.getElementById("volume-debug-current"),
@@ -210,7 +213,10 @@ function getDeveloperConfigFormValue() {
     maxDistanceMm: elements.maxDistance.value,
     minVolumePercent: elements.minVolume.value,
     maxVolumePercent: elements.maxVolume.value,
-    sensitivity: elements.sensitivity.value
+    sensitivity: elements.sensitivity.value,
+    angleCenterDegrees: elements.angleCenter.value,
+    angleWidthDegrees: elements.angleWidth.value,
+    distancePercentile: elements.distancePercentile.value
   };
 }
 
@@ -225,6 +231,9 @@ function applyDeveloperConfigToForm(config) {
   elements.minVolume.value = String(config.minVolumePercent ?? 20);
   elements.maxVolume.value = String(config.maxVolumePercent ?? 85);
   elements.sensitivity.value = String(config.sensitivity ?? 1.6);
+  elements.angleCenter.value = String(config.angleCenterDegrees ?? 90);
+  elements.angleWidth.value = String(config.angleWidthDegrees ?? 70);
+  elements.distancePercentile.value = String(config.distancePercentile ?? 50);
 }
 
 async function loadDeveloperConfig() {

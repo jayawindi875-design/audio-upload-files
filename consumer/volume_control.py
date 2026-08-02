@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import glob
+import math
 import os
 from pathlib import Path
 import queue
@@ -53,6 +54,9 @@ class VolumeControlConfig:
     min_volume_percent: int = 20
     max_volume_percent: int = 85
     sensitivity: float = 1.6
+    angle_center_degrees: int = 90
+    angle_width_degrees: int = 70
+    distance_percentile: int = 50
 
     @classmethod
     def from_dict(cls, payload: dict | None) -> "VolumeControlConfig":
@@ -65,6 +69,9 @@ class VolumeControlConfig:
             min_volume_percent=_read_int(payload.get("minVolumePercent"), 20),
             max_volume_percent=_read_int(payload.get("maxVolumePercent"), 85),
             sensitivity=_read_float(payload.get("sensitivity"), 1.6),
+            angle_center_degrees=_read_int(payload.get("angleCenterDegrees"), 90),
+            angle_width_degrees=_read_int(payload.get("angleWidthDegrees"), 70),
+            distance_percentile=_read_int(payload.get("distancePercentile"), 50),
         ).normalized()
 
     def normalized(self) -> "VolumeControlConfig":
@@ -75,6 +82,9 @@ class VolumeControlConfig:
         low_volume, high_volume = sorted((min_volume, max_volume))
         mode = self.mode if self.mode in {MODE_FARTHER_LOUDER, MODE_NEARER_LOUDER} else MODE_FARTHER_LOUDER
         sensitivity = max(0.3, min(3.0, float(self.sensitivity)))
+        angle_center = int(self.angle_center_degrees) % 360
+        angle_width = max(1, min(360, int(self.angle_width_degrees)))
+        distance_percentile = max(1, min(99, int(self.distance_percentile)))
 
         return VolumeControlConfig(
             enabled=self.enabled,
@@ -84,6 +94,9 @@ class VolumeControlConfig:
             min_volume_percent=low_volume,
             max_volume_percent=high_volume,
             sensitivity=sensitivity,
+            angle_center_degrees=angle_center,
+            angle_width_degrees=angle_width,
+            distance_percentile=distance_percentile,
         )
 
 
@@ -111,6 +124,34 @@ def filter_distances_for_volume(distances, config: VolumeControlConfig) -> list[
     ]
 
 
+def _angle_delta_degrees(angle: float, center: float) -> float:
+    return abs((float(angle) - float(center) + 180) % 360 - 180)
+
+
+def select_distance_for_volume(points, config: VolumeControlConfig) -> int | None:
+    config = config.normalized()
+    distance_window_points = [
+        (int(distance), float(angle))
+        for distance, angle in points
+        if config.min_distance_mm <= int(distance) <= config.max_distance_mm
+    ]
+
+    if not distance_window_points:
+        return None
+
+    half_width = config.angle_width_degrees / 2
+    angle_window_points = [
+        point
+        for point in distance_window_points
+        if config.angle_width_degrees >= 360
+        or _angle_delta_degrees(point[1], config.angle_center_degrees) <= half_width
+    ]
+    selected_points = angle_window_points or distance_window_points
+    distances = sorted(point[0] for point in selected_points)
+    percentile_index = math.ceil((len(distances) - 1) * config.distance_percentile / 100)
+    return distances[percentile_index]
+
+
 def discover_lidar_device(
     configured_device: str | None = None,
     glob_fn=glob.glob,
@@ -135,11 +176,17 @@ class LidarDistanceReader:
         baudrate: int = LIDAR_BAUDRATE,
         min_distance_mm: int = 1,
         max_distance_mm: int = 12000,
+        angle_center_degrees: int = 90,
+        angle_width_degrees: int = 70,
+        distance_percentile: int = 50,
     ):
         self.device = discover_lidar_device(device)
         self.baudrate = baudrate
         self.min_distance_mm = min_distance_mm
         self.max_distance_mm = max_distance_mm
+        self.angle_center_degrees = angle_center_degrees
+        self.angle_width_degrees = angle_width_degrees
+        self.distance_percentile = distance_percentile
 
     def read_distances(self, stop_event: threading.Event):
         try:
@@ -200,8 +247,18 @@ class LidarDistanceReader:
                     if last_angle - start_angle > 100:
                         circle_count += 1
                         if circle_count % 3 == 0 and all_valid_points:
-                            nearest = min(all_valid_points, key=lambda item: item[0])
-                            yield nearest[0]
+                            selected_distance = select_distance_for_volume(
+                                all_valid_points,
+                                VolumeControlConfig(
+                                    min_distance_mm=self.min_distance_mm,
+                                    max_distance_mm=self.max_distance_mm,
+                                    angle_center_degrees=self.angle_center_degrees,
+                                    angle_width_degrees=self.angle_width_degrees,
+                                    distance_percentile=self.distance_percentile,
+                                ),
+                            )
+                            if selected_distance is not None:
+                                yield selected_distance
                             all_valid_points.clear()
                     last_angle = start_angle
                 except Exception as exc:
@@ -223,6 +280,9 @@ class LidarVolumeController:
         self.distance_reader = distance_reader or LidarDistanceReader(
             min_distance_mm=self.config.min_distance_mm,
             max_distance_mm=self.config.max_distance_mm,
+            angle_center_degrees=self.config.angle_center_degrees,
+            angle_width_degrees=self.config.angle_width_degrees,
+            distance_percentile=self.config.distance_percentile,
         )
         self.sink = sink
         self.command_runner = command_runner
