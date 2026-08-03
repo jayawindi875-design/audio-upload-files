@@ -1,5 +1,6 @@
 import { extensionFromRecorderMimeType } from "./src/shared/upload-policy.js";
 import {
+  canStartCall,
   canStartRecording,
   getClientValidationError,
   getErrorMessage,
@@ -10,6 +11,7 @@ import {
 } from "./src/shared/browser-state.js";
 
 const LANGUAGE_STORAGE_KEY = "audio-upload-language";
+const CALL_CHUNK_MILLISECONDS = 1000;
 const RECORDER_MIME_CANDIDATES = [
   "audio/mp4",
   "audio/webm;codecs=opus",
@@ -23,6 +25,13 @@ const elements = {
   heroTitle: document.getElementById("hero-title"),
   heroIntro: document.getElementById("hero-intro"),
   langToggle: document.getElementById("lang-toggle"),
+  callTitle: document.getElementById("call-title"),
+  callDescription: document.getElementById("call-description"),
+  callStartButton: document.getElementById("call-start-button"),
+  callStopButton: document.getElementById("call-stop-button"),
+  callStateLabel: document.getElementById("call-state-label"),
+  callChunksSent: document.getElementById("call-chunks-sent"),
+  callPendingUploads: document.getElementById("call-pending-uploads"),
   recorderTitle: document.getElementById("recorder-title"),
   recorderDescription: document.getElementById("recorder-description"),
   recordStartButton: document.getElementById("record-start-button"),
@@ -83,6 +92,17 @@ let mediaStream = null;
 let isRequestingMicrophone = false;
 let isRecording = false;
 let isUploading = false;
+let isRequestingCallMicrophone = false;
+let isCalling = false;
+let isEndingCall = false;
+let callRecorder = null;
+let callStream = null;
+let callSessionId = "";
+let callChunkIndex = 0;
+let callChunksUploaded = 0;
+let callPendingUploads = 0;
+let callUploadFailures = 0;
+let callUploadChain = Promise.resolve();
 let isSavingDeveloperConfig = false;
 let isUploadingTestSong = false;
 let volumeStatusPollTimer = null;
@@ -116,9 +136,19 @@ function setProgress(percent) {
 
 function refreshControls() {
   const copy = getUiCopy(currentLanguage);
+  elements.callStartButton.disabled = !canStartCall({
+    isRequesting: isRequestingCallMicrophone,
+    isCalling,
+    isUploading: isUploading || isEndingCall || isRequestingMicrophone || isRecording
+  });
+  elements.callStopButton.disabled = !isCalling || isEndingCall;
+  elements.callStartButton.textContent = isRequestingCallMicrophone
+    ? copy.call.connecting
+    : copy.call.start;
+  elements.callStopButton.textContent = isEndingCall ? copy.call.ending : copy.call.stop;
   elements.recordStartButton.disabled = !canStartRecording({
-    isRequesting: isRequestingMicrophone,
-    isRecording,
+    isRequesting: isRequestingMicrophone || isRequestingCallMicrophone,
+    isRecording: isRecording || isCalling,
     isUploading
   });
   elements.recordStopButton.disabled = !isRecording || isUploading;
@@ -135,6 +165,21 @@ function refreshControls() {
   elements.testSongUpload.disabled = isUploadingTestSong;
   elements.testSongFile.disabled = isUploadingTestSong;
   elements.testSongDelay.disabled = isUploadingTestSong;
+}
+
+function updateCallReadout(state = "idle") {
+  const copy = getUiCopy(currentLanguage);
+  const labels = {
+    idle: copy.call.readyDetail,
+    connecting: copy.call.connecting,
+    live: copy.call.live,
+    ending: copy.call.ending,
+    ended: copy.call.endedTitle
+  };
+
+  elements.callStateLabel.textContent = labels[state] || labels.idle;
+  elements.callChunksSent.textContent = copy.call.chunks.replace("{count}", String(callChunksUploaded));
+  elements.callPendingUploads.textContent = copy.call.pending.replace("{count}", String(callPendingUploads));
 }
 
 function updatePlaybackUi() {
@@ -331,6 +376,8 @@ function applyLanguage(language) {
   elements.heroTitle.textContent = copy.heroTitle;
   elements.heroIntro.textContent = copy.heroIntro;
   elements.langToggle.textContent = getToggleLabel(language);
+  elements.callTitle.textContent = copy.call.title;
+  elements.callDescription.textContent = copy.call.description;
   elements.recorderTitle.textContent = copy.recorder.title;
   elements.recorderDescription.textContent = copy.recorder.description;
   elements.recordStartButton.textContent = copy.recorder.start;
@@ -346,6 +393,7 @@ function applyLanguage(language) {
   elements.delayUnit.textContent = copy.playback.delayUnit;
 
   updatePlaybackUi();
+  updateCallReadout(isCalling ? "live" : "idle");
   refreshControls();
   setStatus(currentStatus.status, currentStatus.detail);
 }
@@ -379,17 +427,25 @@ function buildRecordedFile(blob, mimeType) {
   });
 }
 
-function uploadFile(file, delaySeconds) {
+function uploadFile(file, delaySeconds, options = {}) {
+  const {
+    updateProgress = true,
+    fields = {}
+  } = options;
+
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     const formData = new FormData();
     formData.set("file", file);
     formData.set("delaySeconds", String(delaySeconds));
+    Object.entries(fields).forEach(([key, value]) => {
+      formData.set(key, String(value));
+    });
 
     xhr.open("POST", "/api/upload");
     xhr.responseType = "json";
     xhr.upload.addEventListener("progress", (event) => {
-      if (event.lengthComputable) {
+      if (updateProgress && event.lengthComputable) {
         setProgress((event.loaded / event.total) * 100);
       }
     });
@@ -409,6 +465,142 @@ function uploadFile(file, delaySeconds) {
     });
     xhr.send(formData);
   });
+}
+
+function buildCallChunkFile(blob, mimeType, sessionId, chunkIndex) {
+  const extension = extensionFromRecorderMimeType(mimeType || blob.type);
+  const paddedIndex = String(chunkIndex).padStart(5, "0");
+  return new File([blob], `call-${sessionId}-${paddedIndex}${extension}`, {
+    type: blob.type || mimeType || "application/octet-stream"
+  });
+}
+
+function queueCallChunkUpload(blob, mimeType) {
+  if (!blob?.size || !callSessionId) {
+    return;
+  }
+
+  const chunkIndex = callChunkIndex;
+  callChunkIndex += 1;
+  callPendingUploads += 1;
+  updateCallReadout(isEndingCall ? "ending" : "live");
+
+  callUploadChain = callUploadChain
+    .then(async () => {
+      const file = buildCallChunkFile(blob, mimeType, callSessionId, chunkIndex);
+      await uploadFile(file, 0, {
+        updateProgress: false,
+        fields: {
+          uploadKind: "call-chunk",
+          callSessionId,
+          callChunkIndex: chunkIndex
+        }
+      });
+      callChunksUploaded += 1;
+    })
+    .catch((error) => {
+      callUploadFailures += 1;
+      setStatus("error", error.message);
+    })
+    .finally(() => {
+      callPendingUploads = Math.max(0, callPendingUploads - 1);
+      updateCallReadout(isEndingCall ? "ending" : isCalling ? "live" : "ended");
+    });
+}
+
+async function startCall() {
+  const copy = getUiCopy(currentLanguage);
+
+  if (!canStartCall({
+    isRequesting: isRequestingCallMicrophone,
+    isCalling,
+    isUploading: isUploading || isEndingCall || isRequestingMicrophone || isRecording
+  })) {
+    return;
+  }
+
+  if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
+    setStatus("error", copy.errors.recorderUnsupported);
+    return;
+  }
+
+  const sessionMimeType = chooseRecorderMimeType();
+  if (!sessionMimeType) {
+    setStatus("error", copy.errors.recorderUnsupported);
+    return;
+  }
+
+  isRequestingCallMicrophone = true;
+  callChunksUploaded = 0;
+  callPendingUploads = 0;
+  callChunkIndex = 0;
+  callUploadFailures = 0;
+  callSessionId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  callUploadChain = Promise.resolve();
+  updateCallReadout("connecting");
+  refreshControls();
+
+  try {
+    const sessionStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    callStream = sessionStream;
+    const sessionRecorder = new MediaRecorder(sessionStream, { mimeType: sessionMimeType });
+    callRecorder = sessionRecorder;
+
+    sessionRecorder.addEventListener("dataavailable", (event) => {
+      queueCallChunkUpload(event.data, sessionMimeType);
+    });
+
+    sessionRecorder.addEventListener("stop", async () => {
+      callStream?.getTracks().forEach((track) => track.stop());
+      callStream = null;
+      callRecorder = null;
+      isCalling = false;
+      isEndingCall = true;
+      updateCallReadout("ending");
+      refreshControls();
+
+      await callUploadChain;
+      isEndingCall = false;
+      callSessionId = "";
+      if (callUploadFailures > 0) {
+        setStatus("error", getUiCopy(currentLanguage).errors.requestFailed);
+      } else {
+        setStatus("call-ended", getUiCopy(currentLanguage).call.endedDetail);
+      }
+      updateCallReadout("ended");
+      refreshControls();
+    });
+
+    sessionRecorder.start(CALL_CHUNK_MILLISECONDS);
+    isRequestingCallMicrophone = false;
+    isCalling = true;
+    setProgress(0);
+    setStatus("calling", copy.call.liveDetail);
+    updateCallReadout("live");
+    refreshControls();
+  } catch (error) {
+    const denied = error?.name === "NotAllowedError" || error?.name === "SecurityError";
+    callStream?.getTracks().forEach((track) => track.stop());
+    callStream = null;
+    callRecorder = null;
+    isRequestingCallMicrophone = false;
+    isCalling = false;
+    isEndingCall = false;
+    callSessionId = "";
+    setStatus("error", denied ? copy.errors.microphoneDenied : copy.errors.recorderUnsupported);
+    updateCallReadout("idle");
+    refreshControls();
+  }
+}
+
+function stopCall() {
+  if (callRecorder?.state === "recording") {
+    isEndingCall = true;
+    setStatus("uploading", getUiCopy(currentLanguage).call.endingDetail);
+    updateCallReadout("ending");
+    refreshControls();
+    callRecorder.stop();
+  }
 }
 
 async function uploadRecording() {
@@ -447,8 +639,8 @@ async function startRecording() {
   const copy = getUiCopy(currentLanguage);
 
   if (!canStartRecording({
-    isRequesting: isRequestingMicrophone,
-    isRecording,
+    isRequesting: isRequestingMicrophone || isRequestingCallMicrophone,
+    isRecording: isRecording || isCalling,
     isUploading
   })) {
     return;
@@ -518,6 +710,8 @@ async function startRecording() {
   }
 }
 
+elements.callStartButton.addEventListener("click", startCall);
+elements.callStopButton.addEventListener("click", stopCall);
 elements.recordStartButton.addEventListener("click", startRecording);
 elements.recordStopButton.addEventListener("click", () => {
   if (mediaRecorder?.state === "recording") {
@@ -541,6 +735,7 @@ window.addEventListener("beforeunload", () => {
     window.clearInterval(volumeStatusPollTimer);
   }
   mediaStream?.getTracks().forEach((track) => track.stop());
+  callStream?.getTracks().forEach((track) => track.stop());
   if (recordedAudioUrl) {
     URL.revokeObjectURL(recordedAudioUrl);
   }
@@ -548,5 +743,6 @@ window.addEventListener("beforeunload", () => {
 
 applyLanguage(currentLanguage);
 updatePlaybackUi();
+updateCallReadout("idle");
 refreshControls();
 loadDeveloperConfig();

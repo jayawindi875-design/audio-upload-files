@@ -42,16 +42,29 @@ export async function onRequestPost(context) {
   const uploadedAt = Date.now();
   const playAt = uploadedAt + delaySeconds * 1000;
   const key = buildScheduledObjectKey(file.name, playAt, uploadedAt);
+  const uploadKind = String(formData.get("uploadKind") || "recording").trim() || "recording";
+  const callSessionId = String(formData.get("callSessionId") || "").trim();
+  const callChunkIndex = String(formData.get("callChunkIndex") || "").trim();
+  const customMetadata = {
+    originalName: file.name,
+    delaySeconds: String(delaySeconds),
+    playAt: String(playAt),
+    uploadKind
+  };
+
+  if (callSessionId) {
+    customMetadata.callSessionId = callSessionId;
+  }
+
+  if (/^\d+$/.test(callChunkIndex)) {
+    customMetadata.callChunkIndex = callChunkIndex;
+  }
 
   await context.env.AUDIO_UPLOADS.put(key, await file.arrayBuffer(), {
     httpMetadata: {
       contentType: file.type || "application/octet-stream"
     },
-    customMetadata: {
-      originalName: file.name,
-      delaySeconds: String(delaySeconds),
-      playAt: String(playAt)
-    }
+    customMetadata
   });
 
   return json({

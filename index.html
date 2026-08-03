@@ -3,10 +3,10 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Voice Portal</title>
+    <title>Live Voice Portal</title>
     <meta
       name="description"
-      content="通过手机麦克风录音，选择立即或延迟播放，再把声音发送到云端装置。"
+      content="点击开始通话，把手机麦克风声音持续发送到云端装置。"
     >
     <link rel="stylesheet" href="./styles.css">
   </head>
@@ -19,66 +19,33 @@
             EN
           </button>
         </div>
-        <h1 id="hero-title">录下你的声音，让装置替你发声。</h1>
+        <h1 id="hero-title">开始通话，让声音直接抵达装置。</h1>
         <p class="intro" id="hero-intro">
-          打开麦克风录下一段声音，选择立即或延迟播放，再把录音发送到云端装置。
+          点击开始通话后，手机麦克风会持续把声音同步到云端装置；旧版录音上传已收进 developer 控件。
         </p>
       </section>
 
-      <section class="upload-stage" aria-labelledby="recorder-title">
+      <section class="upload-stage" aria-labelledby="call-title">
         <div class="stage-copy">
-          <h2 id="recorder-title">录制声音</h2>
-          <p id="recorder-description">支持手机和电脑浏览器录音，单段录音不超过 50 MB。</p>
+          <h2 id="call-title">实时通话</h2>
+          <p id="call-description">通话会按 1 秒音频分片发送，树莓派继续轮询云端并通过蓝牙音箱播放。</p>
         </div>
 
-        <div class="recorder-actions">
-          <button class="secondary-button" id="record-start-button" type="button">开始录音</button>
-          <button class="secondary-button" id="record-stop-button" type="button" disabled>停止录音</button>
+        <div class="call-actions">
+          <button class="upload-button" id="call-start-button" type="button">开始通话</button>
+          <button class="secondary-button" id="call-stop-button" type="button" disabled>结束通话</button>
         </div>
 
-        <div class="recorder-indicator" id="record-indicator" hidden></div>
-
-        <div class="recorder-preview" id="record-preview" hidden>
-          <p class="preview-title" id="record-preview-title">录音试听</p>
-          <audio id="recorded-audio" controls preload="metadata"></audio>
-        </div>
-
-        <fieldset class="playback-panel">
-          <legend id="playback-title">选择播放时间</legend>
-          <div class="playback-options">
-            <label class="playback-choice">
-              <input type="radio" name="playback-mode" value="immediate" checked>
-              <span>
-                <strong id="playback-immediate-label">立即播放</strong>
-                <small id="playback-immediate-hint">上传完成后，装置会尽快播放</small>
-              </span>
-            </label>
-            <label class="playback-choice">
-              <input type="radio" name="playback-mode" value="delayed">
-              <span>
-                <strong id="playback-delayed-label">延迟播放</strong>
-                <small id="playback-delayed-hint">上传后等待指定秒数再播放</small>
-              </span>
-            </label>
+        <div class="call-readout" aria-live="polite">
+          <div>
+            <span id="call-state-label">准备就绪</span>
+            <strong id="call-chunks-sent">已发送 0 段</strong>
           </div>
-
-          <div class="delay-fields" id="delay-fields" hidden>
-            <label for="delay-seconds" id="delay-label">延迟时间</label>
-            <div class="delay-input-row">
-              <input
-                id="delay-seconds"
-                type="number"
-                min="1"
-                max="604800"
-                step="1"
-                value="30"
-                inputmode="numeric"
-              >
-              <span id="delay-unit">秒</span>
-            </div>
-            <p class="delay-summary" id="delay-summary">录音将在上传后 30 秒进入播放。</p>
+          <div>
+            <span>Upload queue</span>
+            <strong id="call-pending-uploads">0 段等待上传</strong>
           </div>
-        </fieldset>
+        </div>
 
         <div class="developer-shell">
           <button
@@ -88,6 +55,66 @@
             aria-label="Open developer controls"
           ></button>
           <section class="developer-panel" id="developer-panel" hidden>
+            <section class="legacy-recorder" aria-labelledby="recorder-title">
+              <div class="stage-copy">
+                <h3 id="recorder-title">录制声音</h3>
+                <p id="recorder-description">支持手机和电脑浏览器录音，单段录音不超过 50 MB。</p>
+              </div>
+
+              <div class="recorder-actions">
+                <button class="secondary-button" id="record-start-button" type="button">开始录音</button>
+                <button class="secondary-button" id="record-stop-button" type="button" disabled>停止录音</button>
+              </div>
+
+              <div class="recorder-indicator" id="record-indicator" hidden></div>
+
+              <div class="recorder-preview" id="record-preview" hidden>
+                <p class="preview-title" id="record-preview-title">录音试听</p>
+                <audio id="recorded-audio" controls preload="metadata"></audio>
+              </div>
+
+              <fieldset class="playback-panel">
+                <legend id="playback-title">选择播放时间</legend>
+                <div class="playback-options">
+                  <label class="playback-choice">
+                    <input type="radio" name="playback-mode" value="immediate" checked>
+                    <span>
+                      <strong id="playback-immediate-label">立即播放</strong>
+                      <small id="playback-immediate-hint">上传完成后，装置会尽快播放</small>
+                    </span>
+                  </label>
+                  <label class="playback-choice">
+                    <input type="radio" name="playback-mode" value="delayed">
+                    <span>
+                      <strong id="playback-delayed-label">延迟播放</strong>
+                      <small id="playback-delayed-hint">上传后等待指定秒数再播放</small>
+                    </span>
+                  </label>
+                </div>
+
+                <div class="delay-fields" id="delay-fields" hidden>
+                  <label for="delay-seconds" id="delay-label">延迟时间</label>
+                  <div class="delay-input-row">
+                    <input
+                      id="delay-seconds"
+                      type="number"
+                      min="1"
+                      max="604800"
+                      step="1"
+                      value="30"
+                      inputmode="numeric"
+                    >
+                    <span id="delay-unit">秒</span>
+                  </div>
+                  <p class="delay-summary" id="delay-summary">录音将在上传后 30 秒进入播放。</p>
+                </div>
+              </fieldset>
+
+              <button class="upload-button" id="record-upload-button" type="button" disabled>
+                上传录音
+              </button>
+            </section>
+
             <div class="developer-grid">
               <label class="developer-field">
                 <span>Direction</span>
@@ -183,13 +210,9 @@
           </section>
         </div>
 
-        <button class="upload-button" id="record-upload-button" type="button" disabled>
-          上传录音
-        </button>
-
         <div class="status-panel" id="status-panel" data-tone="idle" aria-live="polite">
-          <div class="status-headline" id="status-title">准备录音</div>
-          <div class="status-detail" id="status-detail">点击开始录音，并允许浏览器使用麦克风。</div>
+          <div class="status-headline" id="status-title">准备通话</div>
+          <div class="status-detail" id="status-detail">点击开始通话，并允许浏览器使用麦克风。</div>
           <div class="progress-track" id="progress-track" hidden>
             <div class="progress-bar" id="progress-bar"></div>
           </div>

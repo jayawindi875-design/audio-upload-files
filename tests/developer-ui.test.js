@@ -20,6 +20,24 @@ test("keeps the test song uploader inside the developer panel", () => {
   assert.ok(uploadButton > panelStart);
 });
 
+test("shows live call controls as the primary interface", () => {
+  assert.match(html, /id="call-start-button"/);
+  assert.match(html, /id="call-stop-button"/);
+  assert.match(html, /id="call-chunks-sent"/);
+});
+
+test("keeps the legacy recorder uploader inside the developer panel", () => {
+  const panelStart = html.indexOf('id="developer-panel"');
+  const recordStart = html.indexOf('id="record-start-button"');
+  const playbackPanel = html.indexOf('class="playback-panel"');
+  const uploadButton = html.indexOf('id="record-upload-button"');
+
+  assert.ok(panelStart >= 0);
+  assert.ok(recordStart > panelStart);
+  assert.ok(playbackPanel > panelStart);
+  assert.ok(uploadButton > panelStart);
+});
+
 test("keeps the live volume debug readout inside the developer panel", () => {
   const panelStart = html.indexOf('id="developer-panel"');
   const readout = html.indexOf('id="volume-debug-current"');

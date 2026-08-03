@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  canStartCall,
   canStartRecording,
   formatFileSize,
   getClientValidationError,
@@ -62,6 +63,24 @@ test("maps success status into English copy", () => {
   });
 });
 
+test("maps live call statuses into user-facing copy", () => {
+  assert.deepEqual(getStatusContent("idle", "", "zh"), {
+    tone: "idle",
+    title: "准备通话",
+    detail: "点击开始通话，并允许浏览器使用麦克风。"
+  });
+  assert.deepEqual(getStatusContent("calling", "", "en"), {
+    tone: "uploading",
+    title: "Live call active",
+    detail: "Keep this page open while your voice is sent to the installation."
+  });
+  assert.deepEqual(getStatusContent("call-ended", "", "en"), {
+    tone: "success",
+    title: "Call ended",
+    detail: "The microphone is off. Queued audio will keep playing on the installation."
+  });
+});
+
 test("maps error status into user-facing copy", () => {
   assert.deepEqual(getStatusContent("error", "网络中断"), {
     tone: "error",
@@ -82,9 +101,20 @@ test("returns the expected Chinese and English toggle labels", () => {
   assert.equal(getToggleLabel("en"), "中文");
 });
 
-test("returns recording-only hero copy", () => {
-  assert.equal(getUiCopy("zh").heroTitle, "录下你的声音，让装置替你发声。");
-  assert.equal(getUiCopy("en").heroTitle, "Record your voice and let the installation speak.");
+test("returns live-call hero copy", () => {
+  assert.equal(getUiCopy("zh").heroTitle, "开始通话，让声音直接抵达装置。");
+  assert.equal(
+    getUiCopy("en").heroTitle,
+    "Start a call and send your voice straight to the installation."
+  );
+});
+
+test("returns English UI copy for the call section", () => {
+  const copy = getUiCopy("en");
+
+  assert.equal(copy.call.title, "Live call");
+  assert.equal(copy.call.start, "Start call");
+  assert.equal(copy.call.stop, "End call");
 });
 
 test("returns English UI copy for the recorder section", () => {
@@ -117,4 +147,11 @@ test("prevents recording startup while permission, recording, or upload is activ
   assert.equal(canStartRecording({ isRequesting: true, isRecording: false, isUploading: false }), false);
   assert.equal(canStartRecording({ isRequesting: false, isRecording: true, isUploading: false }), false);
   assert.equal(canStartRecording({ isRequesting: false, isRecording: false, isUploading: true }), false);
+});
+
+test("prevents call startup while permission, call, or upload state is active", () => {
+  assert.equal(canStartCall({ isRequesting: false, isCalling: false, isUploading: false }), true);
+  assert.equal(canStartCall({ isRequesting: true, isCalling: false, isUploading: false }), false);
+  assert.equal(canStartCall({ isRequesting: false, isCalling: true, isUploading: false }), false);
+  assert.equal(canStartCall({ isRequesting: false, isCalling: false, isUploading: true }), false);
 });

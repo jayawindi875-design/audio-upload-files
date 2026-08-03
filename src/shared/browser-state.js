@@ -11,8 +11,24 @@ const MB_LIMIT = Math.round(MAX_FILE_SIZE_BYTES / 1024 / 1024);
 const UI_COPY = {
   zh: {
     eyebrow: "INSTALLATION AUDIO PORTAL",
-    heroTitle: "录下你的声音，让装置替你发声。",
-    heroIntro: "打开麦克风录下一段声音，选择立即或延迟播放，再把录音发送到云端装置。",
+    heroTitle: "开始通话，让声音直接抵达装置。",
+    heroIntro: "点击开始通话后，手机麦克风会持续把声音同步到云端装置；旧版录音上传已收进 developer 控件。",
+    call: {
+      title: "实时通话",
+      description: "通话会按 1 秒音频分片发送，树莓派继续轮询云端并通过蓝牙音箱播放。",
+      start: "开始通话",
+      stop: "结束通话",
+      connecting: "正在连接麦克风...",
+      live: "通话中",
+      ending: "正在结束通话...",
+      chunks: "已发送 {count} 段",
+      pending: "{count} 段等待上传",
+      readyDetail: "点击开始通话，并允许浏览器使用麦克风。",
+      liveDetail: "请保持页面开启，声音会持续发送到装置。",
+      endingDetail: "正在等待最后的音频分片上传完成。",
+      endedTitle: "通话已结束",
+      endedDetail: "麦克风已关闭，已发送的声音会继续由装置播放。"
+    },
     recorder: {
       title: "录制声音",
       description: `支持手机和电脑浏览器录音，单段录音不超过 ${MB_LIMIT} MB。`,
@@ -34,8 +50,8 @@ const UI_COPY = {
       delayedSummary: "录音将在上传后 {seconds} 秒进入播放。"
     },
     status: {
-      idleTitle: "准备录音",
-      idleDetail: "点击开始录音，并允许浏览器使用麦克风。",
+      idleTitle: "准备通话",
+      idleDetail: "点击开始通话，并允许浏览器使用麦克风。",
       readyDetail: "录音已就绪，可以提交到云端。",
       recorderReadyDetail: "录音已完成，可以先试听，再上传到云端。",
       successTitle: "上传成功",
@@ -61,8 +77,24 @@ const UI_COPY = {
   },
   en: {
     eyebrow: "INSTALLATION AUDIO PORTAL",
-    heroTitle: "Record your voice and let the installation speak.",
-    heroIntro: "Record with your microphone, choose immediate or delayed playback, then send your voice to the installation.",
+    heroTitle: "Start a call and send your voice straight to the installation.",
+    heroIntro: "Start a call to stream your phone microphone to the cloud installation. The legacy recording uploader now lives in developer controls.",
+    call: {
+      title: "Live call",
+      description: "The call sends one-second audio chunks while the Pi keeps polling the cloud and playing through the Bluetooth speaker.",
+      start: "Start call",
+      stop: "End call",
+      connecting: "Connecting microphone...",
+      live: "Live call active",
+      ending: "Ending call...",
+      chunks: "{count} chunks sent",
+      pending: "{count} chunks waiting",
+      readyDetail: "Tap start call and allow microphone access.",
+      liveDetail: "Keep this page open while your voice is sent to the installation.",
+      endingDetail: "Waiting for the final audio chunks to finish uploading.",
+      endedTitle: "Call ended",
+      endedDetail: "The microphone is off. Queued audio will keep playing on the installation."
+    },
     recorder: {
       title: "Record your voice",
       description: `Record from a phone or computer browser, up to ${MB_LIMIT} MB per recording.`,
@@ -84,8 +116,8 @@ const UI_COPY = {
       delayedSummary: "Playback will begin {seconds} seconds after upload."
     },
     status: {
-      idleTitle: "Ready to record",
-      idleDetail: "Tap start recording and allow microphone access.",
+      idleTitle: "Ready to call",
+      idleDetail: "Tap start call and allow microphone access.",
       readyDetail: "Your recording is ready to upload.",
       recorderReadyDetail: "Your recording is ready. Preview it or upload it to the cloud queue.",
       successTitle: "Upload complete",
@@ -170,6 +202,10 @@ export function canStartRecording({ isRequesting, isRecording, isUploading }) {
   return !isRequesting && !isRecording && !isUploading;
 }
 
+export function canStartCall({ isRequesting, isCalling, isUploading }) {
+  return !isRequesting && !isCalling && !isUploading;
+}
+
 export function getErrorMessage(errorCode, language = "zh") {
   const copy = getUiCopy(language);
   const normalizedCode = String(errorCode || "").trim();
@@ -190,6 +226,22 @@ export function getErrorMessage(errorCode, language = "zh") {
 
 export function getStatusContent(status, detail = "", language = "zh") {
   const copy = getUiCopy(language);
+
+  if (status === "calling") {
+    return {
+      tone: "uploading",
+      title: copy.call.live,
+      detail: detail || copy.call.liveDetail
+    };
+  }
+
+  if (status === "call-ended") {
+    return {
+      tone: "success",
+      title: copy.call.endedTitle,
+      detail: detail || copy.call.endedDetail
+    };
+  }
 
   if (status === "success") {
     return {

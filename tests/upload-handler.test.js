@@ -3,10 +3,13 @@ import assert from "node:assert/strict";
 
 import { onRequestPost } from "../functions/api/upload.js";
 
-function createRequestWithFile(file, delaySeconds = "0") {
+function createRequestWithFile(file, delaySeconds = "0", fields = {}) {
   const formData = new FormData();
   formData.set("file", file);
   formData.set("delaySeconds", delaySeconds);
+  Object.entries(fields).forEach(([key, value]) => {
+    formData.set(key, value);
+  });
 
   return new Request("https://example.com/api/upload", {
     method: "POST",
@@ -115,6 +118,7 @@ test("stores accepted audio files in the incoming prefix", async () => {
   assert.equal(env.calls.length, 1);
   assert.equal(env.calls[0].key, body.key);
   assert.equal(env.calls[0].options.httpMetadata.contentType, "audio/mpeg");
+  assert.equal(env.calls[0].options.customMetadata.uploadKind, "recording");
 });
 
 test("stores recorded webm uploads", async () => {
@@ -132,6 +136,29 @@ test("stores recorded webm uploads", async () => {
   assert.equal(body.ok, true);
   assert.match(body.key, /^incoming\/\d{13}-\d{13}-recording\.webm$/);
   assert.equal(env.calls[0].options.httpMetadata.contentType, "audio/webm");
+});
+
+test("stores live call chunk metadata without changing the incoming queue", async () => {
+  const env = createEnvRecorder();
+  const file = new File(["recorded-data"], "call-abc-00003.webm", { type: "audio/webm" });
+
+  const response = await onRequestPost({
+    request: createRequestWithFile(file, "0", {
+      uploadKind: "call-chunk",
+      callSessionId: "abc",
+      callChunkIndex: "3"
+    }),
+    env
+  });
+
+  const body = await response.json();
+
+  assert.equal(response.status, 200);
+  assert.equal(body.ok, true);
+  assert.match(body.key, /^incoming\/\d{13}-\d{13}-call-abc-00003\.webm$/);
+  assert.equal(env.calls[0].options.customMetadata.uploadKind, "call-chunk");
+  assert.equal(env.calls[0].options.customMetadata.callSessionId, "abc");
+  assert.equal(env.calls[0].options.customMetadata.callChunkIndex, "3");
 });
 
 test("schedules playback using server time and an arbitrary whole-second delay", async () => {
