@@ -5,6 +5,7 @@ from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import socket
 import subprocess
+import ssl
 
 
 DEFAULT_PLAYER_COMMAND = (
@@ -244,9 +245,21 @@ def create_handler(player_command=DEFAULT_PLAYER_COMMAND):
     )
 
 
-def run_server(host="127.0.0.1", port=8787, player_command=DEFAULT_PLAYER_COMMAND):
+def run_server(
+    host="127.0.0.1",
+    port=8787,
+    player_command=DEFAULT_PLAYER_COMMAND,
+    cert_file=None,
+    key_file=None,
+):
     server = ThreadingHTTPServer((host, port), create_handler(player_command))
-    print(f"[live] listening on http://{host}:{port}")
+    scheme = "http"
+    if cert_file and key_file:
+        context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        context.load_cert_chain(certfile=cert_file, keyfile=key_file)
+        server.socket = context.wrap_socket(server.socket, server_side=True)
+        scheme = "https"
+    print(f"[live] listening on {scheme}://{host}:{port}")
     server.serve_forever()
 
 
@@ -255,12 +268,20 @@ def parse_args():
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8787)
     parser.add_argument("--player-command", default=DEFAULT_PLAYER_COMMAND)
+    parser.add_argument("--cert-file", default="")
+    parser.add_argument("--key-file", default="")
     return parser.parse_args()
 
 
 def main():
     args = parse_args()
-    run_server(args.host, args.port, args.player_command)
+    run_server(
+        args.host,
+        args.port,
+        args.player_command,
+        cert_file=args.cert_file or None,
+        key_file=args.key_file or None,
+    )
 
 
 if __name__ == "__main__":
