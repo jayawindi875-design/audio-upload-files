@@ -18,9 +18,14 @@ const UI_COPY = {
       description: "通话会按 1 秒独立音频文件发送，树莓派继续轮询云端并通过蓝牙音箱播放。",
       start: "开始通话",
       stop: "结束通话",
-      delayLabel: "通话延迟",
+      playbackTitle: "选择播放时间",
+      immediate: "立即播放",
+      immediateHint: "上传完成后，装置会尽快播放",
+      delayed: "延迟播放",
+      delayedHint: "上传后等待指定秒数再播放",
+      delayLabel: "延迟时间",
       delayUnit: "秒",
-      delaySummary: "声音将在录到云端后延迟 {seconds} 秒播放。",
+      delaySummary: "声音将在录到云端后 {seconds} 秒进入播放。",
       connecting: "正在连接麦克风...",
       live: "通话中",
       ending: "正在结束通话...",
@@ -87,9 +92,14 @@ const UI_COPY = {
       description: "The call sends standalone one-second audio files while the Pi keeps polling the cloud and playing through the Bluetooth speaker.",
       start: "Start call",
       stop: "End call",
-      delayLabel: "Call delay",
+      playbackTitle: "Choose playback time",
+      immediate: "Play immediately",
+      immediateHint: "The installation plays as soon as each chunk is ready",
+      delayed: "Play after a delay",
+      delayedHint: "Wait for a chosen number of seconds after upload",
+      delayLabel: "Delay time",
       delayUnit: "seconds",
-      delaySummary: "Audio will play {seconds} seconds after it reaches the cloud.",
+      delaySummary: "Audio will begin playback {seconds} seconds after it reaches the cloud.",
       connecting: "Connecting microphone...",
       live: "Live call active",
       ending: "Ending call...",
@@ -208,9 +218,13 @@ export function canStartRecording({ isRequesting, isRecording, isUploading }) {
   return !isRequesting && !isRecording && !isUploading;
 }
 
-export function resolveCallDelaySeconds(delayValue) {
+export function resolveCallDelaySeconds(playbackMode, delayValue) {
+  if (playbackMode === "immediate") {
+    return 0;
+  }
+
   const seconds = normalizeDelaySeconds(delayValue);
-  return seconds === null ? null : seconds;
+  return playbackMode === "delayed" && seconds !== null && seconds > 0 ? seconds : null;
 }
 
 export function canStartCall({ isRequesting, isCalling, isUploading }) {

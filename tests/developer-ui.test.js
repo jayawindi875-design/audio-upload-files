@@ -24,8 +24,9 @@ test("shows live call controls as the primary interface", () => {
   assert.match(html, /id="call-start-button"/);
   assert.match(html, /id="call-stop-button"/);
   assert.match(html, /id="call-chunks-sent"/);
+  assert.match(html, /name="call-playback-mode" value="immediate"/);
+  assert.match(html, /name="call-playback-mode" value="delayed"/);
   assert.match(html, /id="call-delay-seconds"/);
-  assert.match(html, /value="2"/);
 });
 
 test("keeps the legacy recorder uploader inside the developer panel", () => {

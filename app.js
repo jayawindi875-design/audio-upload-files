@@ -28,6 +28,13 @@ const elements = {
   langToggle: document.getElementById("lang-toggle"),
   callTitle: document.getElementById("call-title"),
   callDescription: document.getElementById("call-description"),
+  callPlaybackTitle: document.getElementById("call-playback-title"),
+  callImmediateLabel: document.getElementById("call-immediate-label"),
+  callImmediateHint: document.getElementById("call-immediate-hint"),
+  callDelayedLabel: document.getElementById("call-delayed-label"),
+  callDelayedHint: document.getElementById("call-delayed-hint"),
+  callPlaybackModeInputs: [...document.querySelectorAll('input[name="call-playback-mode"]')],
+  callDelayFields: document.getElementById("call-delay-fields"),
   callDelayLabel: document.getElementById("call-delay-label"),
   callDelayInput: document.getElementById("call-delay-seconds"),
   callDelayUnit: document.getElementById("call-delay-unit"),
@@ -121,6 +128,10 @@ function getPlaybackMode() {
   return elements.playbackModeInputs.find((input) => input.checked)?.value || "immediate";
 }
 
+function getCallPlaybackMode() {
+  return elements.callPlaybackModeInputs.find((input) => input.checked)?.value || "immediate";
+}
+
 function setStatus(status, detail = "") {
   currentStatus = { status, detail };
   const content = getStatusContent(status, detail, currentLanguage);
@@ -153,6 +164,9 @@ function refreshControls() {
     : copy.call.start;
   elements.callStopButton.textContent = isEndingCall ? copy.call.ending : copy.call.stop;
   elements.callDelayInput.disabled = isCalling || isEndingCall || isRequestingCallMicrophone;
+  elements.callPlaybackModeInputs.forEach((input) => {
+    input.disabled = isCalling || isEndingCall || isRequestingCallMicrophone;
+  });
   elements.recordStartButton.disabled = !canStartRecording({
     isRequesting: isRequestingMicrophone || isRequestingCallMicrophone,
     isRecording: isRecording || isCalling,
@@ -176,9 +190,12 @@ function refreshControls() {
 
 function updateCallDelayUi() {
   const copy = getUiCopy(currentLanguage);
-  const seconds = resolveCallDelaySeconds(elements.callDelayInput.value);
+  const delayed = getCallPlaybackMode() === "delayed";
+  const seconds = resolveCallDelaySeconds(getCallPlaybackMode(), elements.callDelayInput.value);
 
-  elements.callDelayInput.setAttribute("aria-invalid", seconds === null ? "true" : "false");
+  elements.callDelayFields.hidden = !delayed;
+  elements.callDelayInput.disabled = !delayed || isCalling || isEndingCall || isRequestingCallMicrophone;
+  elements.callDelayInput.setAttribute("aria-invalid", delayed && seconds === null ? "true" : "false");
   elements.callDelaySummary.textContent = seconds === null
     ? copy.errors.invalidDelay
     : copy.call.delaySummary.replace("{seconds}", String(seconds));
@@ -395,6 +412,11 @@ function applyLanguage(language) {
   elements.langToggle.textContent = getToggleLabel(language);
   elements.callTitle.textContent = copy.call.title;
   elements.callDescription.textContent = copy.call.description;
+  elements.callPlaybackTitle.textContent = copy.call.playbackTitle;
+  elements.callImmediateLabel.textContent = copy.call.immediate;
+  elements.callImmediateHint.textContent = copy.call.immediateHint;
+  elements.callDelayedLabel.textContent = copy.call.delayed;
+  elements.callDelayedHint.textContent = copy.call.delayedHint;
   elements.callDelayLabel.textContent = copy.call.delayLabel;
   elements.callDelayUnit.textContent = copy.call.delayUnit;
   elements.recorderTitle.textContent = copy.recorder.title;
@@ -607,7 +629,7 @@ async function startCall() {
     return;
   }
 
-  const delaySeconds = resolveCallDelaySeconds(elements.callDelayInput.value);
+  const delaySeconds = resolveCallDelaySeconds(getCallPlaybackMode(), elements.callDelayInput.value);
   if (delaySeconds === null) {
     setStatus("error", getErrorMessage("INVALID_DELAY", currentLanguage));
     elements.callDelayInput.focus();
@@ -778,6 +800,7 @@ async function startRecording() {
 elements.callStartButton.addEventListener("click", startCall);
 elements.callStopButton.addEventListener("click", stopCall);
 elements.callDelayInput.addEventListener("input", updateCallDelayUi);
+elements.callPlaybackModeInputs.forEach((input) => input.addEventListener("change", updateCallDelayUi));
 elements.recordStartButton.addEventListener("click", startRecording);
 elements.recordStopButton.addEventListener("click", () => {
   if (mediaRecorder?.state === "recording") {

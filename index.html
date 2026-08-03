@@ -31,22 +31,42 @@
           <p id="call-description">通话会按 1 秒独立音频文件发送，树莓派继续轮询云端并通过蓝牙音箱播放。</p>
         </div>
 
-        <div class="call-delay-fields">
-          <label for="call-delay-seconds" id="call-delay-label">通话延迟</label>
-          <div class="delay-input-row">
-            <input
-              id="call-delay-seconds"
-              type="number"
-              min="0"
-              max="604800"
-              step="1"
-              value="2"
-              inputmode="numeric"
-            >
-            <span id="call-delay-unit">秒</span>
+        <fieldset class="playback-panel call-playback-panel">
+          <legend id="call-playback-title">选择播放时间</legend>
+          <div class="playback-options">
+            <label class="playback-choice">
+              <input type="radio" name="call-playback-mode" value="immediate" checked>
+              <span>
+                <strong id="call-immediate-label">立即播放</strong>
+                <small id="call-immediate-hint">上传完成后，装置会尽快播放</small>
+              </span>
+            </label>
+            <label class="playback-choice">
+              <input type="radio" name="call-playback-mode" value="delayed">
+              <span>
+                <strong id="call-delayed-label">延迟播放</strong>
+                <small id="call-delayed-hint">上传后等待指定秒数再播放</small>
+              </span>
+            </label>
           </div>
-          <p class="delay-summary" id="call-delay-summary">声音将在录到云端后延迟 2 秒播放。</p>
-        </div>
+
+          <div class="delay-fields" id="call-delay-fields" hidden>
+            <label for="call-delay-seconds" id="call-delay-label">延迟时间</label>
+            <div class="delay-input-row">
+              <input
+                id="call-delay-seconds"
+                type="number"
+                min="1"
+                max="604800"
+                step="1"
+                value="2"
+                inputmode="numeric"
+              >
+              <span id="call-delay-unit">秒</span>
+            </div>
+            <p class="delay-summary" id="call-delay-summary">声音将在录到云端后 2 秒进入播放。</p>
+          </div>
+        </fieldset>
 
         <div class="call-actions">
           <button class="upload-button" id="call-start-button" type="button">开始通话</button>

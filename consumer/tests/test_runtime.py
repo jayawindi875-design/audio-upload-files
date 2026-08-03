@@ -88,11 +88,49 @@ class RuntimeTests(unittest.TestCase):
         )
 
         played = player.play(Path("/tmp/test.mp3"), volume_config={"mode": "nearer_louder"})
+        player.close()
 
         self.assertTrue(played)
         self.assertEqual(events[0], ("start", "nearer_louder"))
         self.assertEqual(events[-1], ("stop", "nearer_louder"))
         self.assertIn("test.mp3", events[1][1])
+
+    def test_command_player_keeps_lidar_controller_running_between_files(self):
+        events = []
+
+        class FakeController:
+            def __init__(self, config, status_reporter=None):
+                self.config = config
+
+            def start(self):
+                events.append(("start", self.config.mode))
+
+            def stop(self):
+                events.append(("stop", self.config.mode))
+
+        def fake_run(command, shell, check):
+            events.append(("play", command))
+
+            class Completed:
+                returncode = 0
+
+            return Completed()
+
+        player = CommandPlayer(
+            "ffplay -nodisp -autoexit",
+            command_runner=fake_run,
+            volume_controller_factory=FakeController,
+        )
+
+        player.play(Path("/tmp/first.webm"), volume_config={"enabled": True, "mode": "nearer_louder"})
+        player.play(Path("/tmp/second.webm"), volume_config={"enabled": True, "mode": "nearer_louder"})
+        player.close()
+
+        self.assertEqual(events[0], ("start", "nearer_louder"))
+        self.assertEqual(events[-1], ("stop", "nearer_louder"))
+        self.assertIn("first.webm", events[1][1])
+        self.assertIn("second.webm", events[2][1])
+        self.assertEqual([event[0] for event in events], ["start", "play", "play", "stop"])
 
     def test_consumer_loop_sleeps_only_when_no_file_was_played(self):
         events = []
