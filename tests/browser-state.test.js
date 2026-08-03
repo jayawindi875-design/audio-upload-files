@@ -10,6 +10,7 @@ import {
   getStatusContent,
   getToggleLabel,
   getUiCopy,
+  resolveCallDelaySeconds,
   resolvePlaybackDelaySeconds
 } from "../src/shared/browser-state.js";
 
@@ -147,6 +148,16 @@ test("prevents recording startup while permission, recording, or upload is activ
   assert.equal(canStartRecording({ isRequesting: true, isRecording: false, isUploading: false }), false);
   assert.equal(canStartRecording({ isRequesting: false, isRecording: true, isUploading: false }), false);
   assert.equal(canStartRecording({ isRequesting: false, isRecording: false, isUploading: true }), false);
+});
+
+test("resolves live call delay choices", () => {
+  assert.equal(resolveCallDelaySeconds("0"), 0);
+  assert.equal(resolveCallDelaySeconds("2"), 2);
+  assert.equal(resolveCallDelaySeconds("604800"), 604800);
+  assert.equal(resolveCallDelaySeconds(""), null);
+  assert.equal(resolveCallDelaySeconds("1.5"), null);
+  assert.equal(resolveCallDelaySeconds("-1"), null);
+  assert.equal(resolveCallDelaySeconds("604801"), null);
 });
 
 test("prevents call startup while permission, call, or upload state is active", () => {

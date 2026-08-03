@@ -28,7 +28,24 @@
       <section class="upload-stage" aria-labelledby="call-title">
         <div class="stage-copy">
           <h2 id="call-title">实时通话</h2>
-          <p id="call-description">通话会按 1 秒音频分片发送，树莓派继续轮询云端并通过蓝牙音箱播放。</p>
+          <p id="call-description">通话会按 1 秒独立音频文件发送，树莓派继续轮询云端并通过蓝牙音箱播放。</p>
+        </div>
+
+        <div class="call-delay-fields">
+          <label for="call-delay-seconds" id="call-delay-label">通话延迟</label>
+          <div class="delay-input-row">
+            <input
+              id="call-delay-seconds"
+              type="number"
+              min="0"
+              max="604800"
+              step="1"
+              value="2"
+              inputmode="numeric"
+            >
+            <span id="call-delay-unit">秒</span>
+          </div>
+          <p class="delay-summary" id="call-delay-summary">声音将在录到云端后延迟 2 秒播放。</p>
         </div>
 
         <div class="call-actions">

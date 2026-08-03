@@ -15,9 +15,12 @@ const UI_COPY = {
     heroIntro: "点击开始通话后，手机麦克风会持续把声音同步到云端装置；旧版录音上传已收进 developer 控件。",
     call: {
       title: "实时通话",
-      description: "通话会按 1 秒音频分片发送，树莓派继续轮询云端并通过蓝牙音箱播放。",
+      description: "通话会按 1 秒独立音频文件发送，树莓派继续轮询云端并通过蓝牙音箱播放。",
       start: "开始通话",
       stop: "结束通话",
+      delayLabel: "通话延迟",
+      delayUnit: "秒",
+      delaySummary: "声音将在录到云端后延迟 {seconds} 秒播放。",
       connecting: "正在连接麦克风...",
       live: "通话中",
       ending: "正在结束通话...",
@@ -81,9 +84,12 @@ const UI_COPY = {
     heroIntro: "Start a call to stream your phone microphone to the cloud installation. The legacy recording uploader now lives in developer controls.",
     call: {
       title: "Live call",
-      description: "The call sends one-second audio chunks while the Pi keeps polling the cloud and playing through the Bluetooth speaker.",
+      description: "The call sends standalone one-second audio files while the Pi keeps polling the cloud and playing through the Bluetooth speaker.",
       start: "Start call",
       stop: "End call",
+      delayLabel: "Call delay",
+      delayUnit: "seconds",
+      delaySummary: "Audio will play {seconds} seconds after it reaches the cloud.",
       connecting: "Connecting microphone...",
       live: "Live call active",
       ending: "Ending call...",
@@ -200,6 +206,11 @@ export function resolvePlaybackDelaySeconds(playbackMode, delayValue) {
 
 export function canStartRecording({ isRequesting, isRecording, isUploading }) {
   return !isRequesting && !isRecording && !isUploading;
+}
+
+export function resolveCallDelaySeconds(delayValue) {
+  const seconds = normalizeDelaySeconds(delayValue);
+  return seconds === null ? null : seconds;
 }
 
 export function canStartCall({ isRequesting, isCalling, isUploading }) {

@@ -7,6 +7,7 @@ import {
   getStatusContent,
   getToggleLabel,
   getUiCopy,
+  resolveCallDelaySeconds,
   resolvePlaybackDelaySeconds
 } from "./src/shared/browser-state.js";
 
@@ -27,6 +28,10 @@ const elements = {
   langToggle: document.getElementById("lang-toggle"),
   callTitle: document.getElementById("call-title"),
   callDescription: document.getElementById("call-description"),
+  callDelayLabel: document.getElementById("call-delay-label"),
+  callDelayInput: document.getElementById("call-delay-seconds"),
+  callDelayUnit: document.getElementById("call-delay-unit"),
+  callDelaySummary: document.getElementById("call-delay-summary"),
   callStartButton: document.getElementById("call-start-button"),
   callStopButton: document.getElementById("call-stop-button"),
   callStateLabel: document.getElementById("call-state-label"),
@@ -97,6 +102,7 @@ let isCalling = false;
 let isEndingCall = false;
 let callRecorder = null;
 let callStream = null;
+let callChunkTimer = null;
 let callSessionId = "";
 let callChunkIndex = 0;
 let callChunksUploaded = 0;
@@ -146,6 +152,7 @@ function refreshControls() {
     ? copy.call.connecting
     : copy.call.start;
   elements.callStopButton.textContent = isEndingCall ? copy.call.ending : copy.call.stop;
+  elements.callDelayInput.disabled = isCalling || isEndingCall || isRequestingCallMicrophone;
   elements.recordStartButton.disabled = !canStartRecording({
     isRequesting: isRequestingMicrophone || isRequestingCallMicrophone,
     isRecording: isRecording || isCalling,
@@ -165,6 +172,16 @@ function refreshControls() {
   elements.testSongUpload.disabled = isUploadingTestSong;
   elements.testSongFile.disabled = isUploadingTestSong;
   elements.testSongDelay.disabled = isUploadingTestSong;
+}
+
+function updateCallDelayUi() {
+  const copy = getUiCopy(currentLanguage);
+  const seconds = resolveCallDelaySeconds(elements.callDelayInput.value);
+
+  elements.callDelayInput.setAttribute("aria-invalid", seconds === null ? "true" : "false");
+  elements.callDelaySummary.textContent = seconds === null
+    ? copy.errors.invalidDelay
+    : copy.call.delaySummary.replace("{seconds}", String(seconds));
 }
 
 function updateCallReadout(state = "idle") {
@@ -378,6 +395,8 @@ function applyLanguage(language) {
   elements.langToggle.textContent = getToggleLabel(language);
   elements.callTitle.textContent = copy.call.title;
   elements.callDescription.textContent = copy.call.description;
+  elements.callDelayLabel.textContent = copy.call.delayLabel;
+  elements.callDelayUnit.textContent = copy.call.delayUnit;
   elements.recorderTitle.textContent = copy.recorder.title;
   elements.recorderDescription.textContent = copy.recorder.description;
   elements.recordStartButton.textContent = copy.recorder.start;
@@ -393,6 +412,7 @@ function applyLanguage(language) {
   elements.delayUnit.textContent = copy.playback.delayUnit;
 
   updatePlaybackUi();
+  updateCallDelayUi();
   updateCallReadout(isCalling ? "live" : "idle");
   refreshControls();
   setStatus(currentStatus.status, currentStatus.detail);
@@ -475,7 +495,7 @@ function buildCallChunkFile(blob, mimeType, sessionId, chunkIndex) {
   });
 }
 
-function queueCallChunkUpload(blob, mimeType) {
+function queueCallChunkUpload(blob, mimeType, delaySeconds) {
   if (!blob?.size || !callSessionId) {
     return;
   }
@@ -488,7 +508,7 @@ function queueCallChunkUpload(blob, mimeType) {
   callUploadChain = callUploadChain
     .then(async () => {
       const file = buildCallChunkFile(blob, mimeType, callSessionId, chunkIndex);
-      await uploadFile(file, 0, {
+      await uploadFile(file, delaySeconds, {
         updateProgress: false,
         fields: {
           uploadKind: "call-chunk",
@@ -506,6 +526,63 @@ function queueCallChunkUpload(blob, mimeType) {
       callPendingUploads = Math.max(0, callPendingUploads - 1);
       updateCallReadout(isEndingCall ? "ending" : isCalling ? "live" : "ended");
     });
+}
+
+function clearCallChunkTimer() {
+  if (callChunkTimer) {
+    window.clearTimeout(callChunkTimer);
+    callChunkTimer = null;
+  }
+}
+
+function finishCallAfterUploads() {
+  callUploadChain.finally(() => {
+    isEndingCall = false;
+    callSessionId = "";
+    if (callUploadFailures > 0) {
+      setStatus("error", getUiCopy(currentLanguage).errors.requestFailed);
+    } else {
+      setStatus("call-ended", getUiCopy(currentLanguage).call.endedDetail);
+    }
+    updateCallReadout("ended");
+    refreshControls();
+  });
+}
+
+function startNextCallChunk(mimeType, delaySeconds) {
+  if (!isCalling || isEndingCall || !callStream) {
+    return;
+  }
+
+  const sessionRecorder = new MediaRecorder(callStream, { mimeType });
+  const sessionChunks = [];
+  callRecorder = sessionRecorder;
+
+  sessionRecorder.addEventListener("dataavailable", (event) => {
+    if (event.data?.size > 0) {
+      sessionChunks.push(event.data);
+    }
+  });
+
+  sessionRecorder.addEventListener("stop", () => {
+    const blob = new Blob(sessionChunks, { type: mimeType });
+    queueCallChunkUpload(blob, mimeType, delaySeconds);
+    callRecorder = null;
+
+    if (isCalling && !isEndingCall) {
+      startNextCallChunk(mimeType, delaySeconds);
+    } else if (isEndingCall) {
+      finishCallAfterUploads();
+    }
+  });
+
+  sessionRecorder.start();
+  clearCallChunkTimer();
+  callChunkTimer = window.setTimeout(() => {
+    if (sessionRecorder.state === "recording") {
+      sessionRecorder.stop();
+    }
+  }, CALL_CHUNK_MILLISECONDS);
 }
 
 async function startCall() {
@@ -530,6 +607,13 @@ async function startCall() {
     return;
   }
 
+  const delaySeconds = resolveCallDelaySeconds(elements.callDelayInput.value);
+  if (delaySeconds === null) {
+    setStatus("error", getErrorMessage("INVALID_DELAY", currentLanguage));
+    elements.callDelayInput.focus();
+    return;
+  }
+
   isRequestingCallMicrophone = true;
   callChunksUploaded = 0;
   callPendingUploads = 0;
@@ -543,42 +627,15 @@ async function startCall() {
   try {
     const sessionStream = await navigator.mediaDevices.getUserMedia({ audio: true });
     callStream = sessionStream;
-    const sessionRecorder = new MediaRecorder(sessionStream, { mimeType: sessionMimeType });
-    callRecorder = sessionRecorder;
-
-    sessionRecorder.addEventListener("dataavailable", (event) => {
-      queueCallChunkUpload(event.data, sessionMimeType);
-    });
-
-    sessionRecorder.addEventListener("stop", async () => {
-      callStream?.getTracks().forEach((track) => track.stop());
-      callStream = null;
-      callRecorder = null;
-      isCalling = false;
-      isEndingCall = true;
-      updateCallReadout("ending");
-      refreshControls();
-
-      await callUploadChain;
-      isEndingCall = false;
-      callSessionId = "";
-      if (callUploadFailures > 0) {
-        setStatus("error", getUiCopy(currentLanguage).errors.requestFailed);
-      } else {
-        setStatus("call-ended", getUiCopy(currentLanguage).call.endedDetail);
-      }
-      updateCallReadout("ended");
-      refreshControls();
-    });
-
-    sessionRecorder.start(CALL_CHUNK_MILLISECONDS);
     isRequestingCallMicrophone = false;
     isCalling = true;
     setProgress(0);
     setStatus("calling", copy.call.liveDetail);
     updateCallReadout("live");
+    startNextCallChunk(sessionMimeType, delaySeconds);
     refreshControls();
   } catch (error) {
+    clearCallChunkTimer();
     const denied = error?.name === "NotAllowedError" || error?.name === "SecurityError";
     callStream?.getTracks().forEach((track) => track.stop());
     callStream = null;
@@ -594,12 +651,20 @@ async function startCall() {
 }
 
 function stopCall() {
-  if (callRecorder?.state === "recording") {
+  if (isCalling && !isEndingCall) {
     isEndingCall = true;
+    isCalling = false;
     setStatus("uploading", getUiCopy(currentLanguage).call.endingDetail);
     updateCallReadout("ending");
     refreshControls();
-    callRecorder.stop();
+    clearCallChunkTimer();
+    if (callRecorder?.state === "recording") {
+      callRecorder.stop();
+    } else {
+      finishCallAfterUploads();
+    }
+    callStream?.getTracks().forEach((track) => track.stop());
+    callStream = null;
   }
 }
 
@@ -712,6 +777,7 @@ async function startRecording() {
 
 elements.callStartButton.addEventListener("click", startCall);
 elements.callStopButton.addEventListener("click", stopCall);
+elements.callDelayInput.addEventListener("input", updateCallDelayUi);
 elements.recordStartButton.addEventListener("click", startRecording);
 elements.recordStopButton.addEventListener("click", () => {
   if (mediaRecorder?.state === "recording") {
@@ -735,6 +801,7 @@ window.addEventListener("beforeunload", () => {
     window.clearInterval(volumeStatusPollTimer);
   }
   mediaStream?.getTracks().forEach((track) => track.stop());
+  clearCallChunkTimer();
   callStream?.getTracks().forEach((track) => track.stop());
   if (recordedAudioUrl) {
     URL.revokeObjectURL(recordedAudioUrl);
@@ -743,6 +810,7 @@ window.addEventListener("beforeunload", () => {
 
 applyLanguage(currentLanguage);
 updatePlaybackUi();
+updateCallDelayUi();
 updateCallReadout("idle");
 refreshControls();
 loadDeveloperConfig();
