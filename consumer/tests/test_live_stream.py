@@ -1,6 +1,12 @@
 import unittest
 
-from consumer.live_stream import StreamingPlayer, create_app
+from consumer.live_stream import (
+    PAGE_HTML,
+    StreamingPlayer,
+    create_handler,
+    read_ws_frame,
+    websocket_accept_key,
+)
 
 
 class FakeStdin:
@@ -59,12 +65,40 @@ class LiveStreamTests(unittest.TestCase):
         self.assertTrue(processes[0][3].stdin.closed)
         self.assertTrue(processes[0][3].waited)
 
-    def test_live_stream_app_exposes_page_and_websocket_route(self):
-        app = create_app()
-        routes = {(route.method, route.resource.canonical) for route in app.router.routes()}
+    def test_builds_websocket_accept_key(self):
+        self.assertEqual(
+            websocket_accept_key("dGhlIHNhbXBsZSBub25jZQ=="),
+            "s3pPLMBiTxaQ9kYGzzhZRbK+xOo=",
+        )
 
-        self.assertIn(("GET", "/"), routes)
-        self.assertIn(("GET", "/ws"), routes)
+    def test_live_stream_page_uses_websocket_endpoint(self):
+        self.assertIn("/ws", PAGE_HTML)
+        self.assertIn("手机麦克风", PAGE_HTML)
+
+    def test_configures_handler_with_player_command(self):
+        handler = create_handler("custom-player -i pipe:0")
+
+        self.assertEqual(handler.player_command, "custom-player -i pipe:0")
+
+    def test_reads_masked_binary_websocket_frame(self):
+        class FakeSocket:
+            def __init__(self, data):
+                self.data = bytearray(data)
+
+            def recv(self, size):
+                chunk = self.data[:size]
+                del self.data[:size]
+                return bytes(chunk)
+
+        payload = b"abc"
+        mask = b"\x01\x02\x03\x04"
+        masked_payload = bytes(byte ^ mask[index % 4] for index, byte in enumerate(payload))
+        frame = b"\x82" + bytes([0x80 | len(payload)]) + mask + masked_payload
+
+        opcode, data = read_ws_frame(FakeSocket(frame))
+
+        self.assertEqual(opcode, 0x2)
+        self.assertEqual(data, payload)
 
 
 if __name__ == "__main__":

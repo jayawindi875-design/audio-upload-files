@@ -1,15 +1,18 @@
 import argparse
+import base64
+import hashlib
+from http import HTTPStatus
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+import socket
 import subprocess
-
-from aiohttp import web
 
 
 DEFAULT_PLAYER_COMMAND = (
     "ffplay -nodisp -autoexit -loglevel warning "
     "-fflags nobuffer -flags low_delay -probesize 32 -analyzeduration 0 -i pipe:0"
 )
-PLAYER_FACTORY_KEY = web.AppKey("player_factory", object)
 
+WEBSOCKET_GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 
 PAGE_HTML = """<!doctype html>
 <html lang="zh-CN">
@@ -18,65 +21,19 @@ PAGE_HTML = """<!doctype html>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Pi Live Audio</title>
     <style>
-      :root {
-        --bg: #eef4f1;
-        --text: #101a18;
-        --muted: #5f6b67;
-        --accent: #087f8c;
-        --line: rgba(16, 26, 24, 0.14);
-      }
+      :root { --bg:#eef4f1; --text:#101a18; --muted:#5f6b67; --accent:#087f8c; --line:rgba(16,26,24,.14); }
       * { box-sizing: border-box; }
-      body {
-        margin: 0;
-        min-height: 100svh;
-        display: grid;
-        place-items: center;
-        padding: 24px;
-        background: var(--bg);
-        color: var(--text);
-        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      }
-      main {
-        width: min(100%, 680px);
-        display: grid;
-        gap: 24px;
-      }
-      h1 {
-        margin: 0;
-        font-size: clamp(44px, 12vw, 96px);
-        line-height: 0.95;
-        letter-spacing: 0;
-      }
-      p { margin: 0; color: var(--muted); line-height: 1.7; }
-      .panel {
-        display: grid;
-        gap: 18px;
-        padding: 24px;
-        border: 1px solid var(--line);
-        background: rgba(255,255,255,0.78);
-      }
-      .actions {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 12px;
-      }
-      button {
-        min-height: 58px;
-        border: 1px solid var(--line);
-        border-radius: 999px;
-        font: inherit;
-        font-size: 18px;
-      }
-      #start { background: var(--accent); color: white; border-color: var(--accent); }
-      button:disabled { opacity: 0.5; }
-      .status {
-        border-top: 1px solid var(--line);
-        padding-top: 16px;
-        color: var(--muted);
-      }
-      @media (max-width: 620px) {
-        .actions { grid-template-columns: 1fr; }
-      }
+      body { margin:0; min-height:100svh; display:grid; place-items:center; padding:24px; background:var(--bg); color:var(--text); font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+      main { width:min(100%,680px); display:grid; gap:24px; }
+      h1 { margin:0; font-size:clamp(44px,12vw,96px); line-height:.95; letter-spacing:0; }
+      p { margin:0; color:var(--muted); line-height:1.7; }
+      .panel { display:grid; gap:18px; padding:24px; border:1px solid var(--line); background:rgba(255,255,255,.78); }
+      .actions { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+      button { min-height:58px; border:1px solid var(--line); border-radius:999px; font:inherit; font-size:18px; }
+      #start { background:var(--accent); color:white; border-color:var(--accent); }
+      button:disabled { opacity:.5; }
+      .status { border-top:1px solid var(--line); padding-top:16px; color:var(--muted); }
+      @media (max-width:620px) { .actions { grid-template-columns:1fr; } }
     </style>
   </head>
   <body>
@@ -95,57 +52,33 @@ PAGE_HTML = """<!doctype html>
       const startButton = document.getElementById("start");
       const stopButton = document.getElementById("stop");
       const statusEl = document.getElementById("status");
-      const MIME_CANDIDATES = [
-        "audio/webm;codecs=opus",
-        "audio/webm",
-        "audio/mp4",
-        "audio/ogg;codecs=opus",
-        "audio/ogg"
-      ];
+      const MIME_CANDIDATES = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/ogg;codecs=opus", "audio/ogg"];
       let socket = null;
       let stream = null;
       let recorder = null;
       let sentChunks = 0;
-
-      function setStatus(message) {
-        statusEl.textContent = message;
-      }
-
+      function setStatus(message) { statusEl.textContent = message; }
       function chooseMimeType() {
         if (!window.MediaRecorder) return "";
         return MIME_CANDIDATES.find((mime) => MediaRecorder.isTypeSupported(mime)) || "";
       }
-
       function wsUrl() {
         const protocol = location.protocol === "https:" ? "wss:" : "ws:";
         return `${protocol}//${location.host}/ws`;
       }
-
       async function start() {
         const mimeType = chooseMimeType();
-        if (!mimeType) {
-          setStatus("当前浏览器不支持录音格式。");
-          return;
-        }
-
+        if (!mimeType) { setStatus("当前浏览器不支持录音格式。"); return; }
         startButton.disabled = true;
         setStatus("正在打开麦克风...");
-
         try {
-          stream = await navigator.mediaDevices.getUserMedia({
-            audio: {
-              echoCancellation: false,
-              noiseSuppression: false,
-              autoGainControl: false
-            }
-          });
+          stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation:false, noiseSuppression:false, autoGainControl:false } });
           socket = new WebSocket(wsUrl());
           socket.binaryType = "arraybuffer";
           await new Promise((resolve, reject) => {
-            socket.addEventListener("open", resolve, { once: true });
-            socket.addEventListener("error", reject, { once: true });
+            socket.addEventListener("open", resolve, { once:true });
+            socket.addEventListener("error", reject, { once:true });
           });
-
           sentChunks = 0;
           recorder = new MediaRecorder(stream, { mimeType });
           recorder.addEventListener("dataavailable", async (event) => {
@@ -166,19 +99,14 @@ PAGE_HTML = """<!doctype html>
           setStatus("连接失败，请确认麦克风权限和树莓派服务。");
         }
       }
-
       function stop() {
         if (recorder?.state === "recording") recorder.stop();
         stream?.getTracks().forEach((track) => track.stop());
         if (socket?.readyState === WebSocket.OPEN) socket.close();
-        recorder = null;
-        stream = null;
-        socket = null;
-        startButton.disabled = false;
-        stopButton.disabled = true;
+        recorder = null; stream = null; socket = null;
+        startButton.disabled = false; stopButton.disabled = true;
         setStatus("已停止。");
       }
-
       startButton.addEventListener("click", start);
       stopButton.addEventListener("click", stop);
       window.addEventListener("beforeunload", stop);
@@ -201,11 +129,7 @@ class StreamingPlayer:
     def start(self):
         if self.active:
             return
-        self.process = self.process_factory(
-            self.command,
-            shell=True,
-            stdin=subprocess.PIPE,
-        )
+        self.process = self.process_factory(self.command, shell=True, stdin=subprocess.PIPE)
 
     def write(self, data: bytes):
         if not data:
@@ -230,33 +154,100 @@ class StreamingPlayer:
         self.process = None
 
 
-async def index(_request):
-    return web.Response(text=PAGE_HTML, content_type="text/html")
+def websocket_accept_key(client_key: str) -> str:
+    digest = hashlib.sha1((client_key + WEBSOCKET_GUID).encode("ascii")).digest()
+    return base64.b64encode(digest).decode("ascii")
 
 
-async def websocket_handler(request):
-    ws = web.WebSocketResponse()
-    await ws.prepare(request)
-
-    player = request.app[PLAYER_FACTORY_KEY]()
-    try:
-        async for message in ws:
-            if message.type == web.WSMsgType.BINARY:
-                player.write(message.data)
-            elif message.type == web.WSMsgType.TEXT and message.data == "stop":
-                break
-    finally:
-        player.stop()
-
-    return ws
+def read_exact(sock, size: int) -> bytes:
+    chunks = []
+    remaining = size
+    while remaining > 0:
+        chunk = sock.recv(remaining)
+        if not chunk:
+            raise ConnectionError("socket closed")
+        chunks.append(chunk)
+        remaining -= len(chunk)
+    return b"".join(chunks)
 
 
-def create_app(player_command=DEFAULT_PLAYER_COMMAND):
-    app = web.Application()
-    app[PLAYER_FACTORY_KEY] = lambda: StreamingPlayer(player_command)
-    app.router.add_get("/", index)
-    app.router.add_get("/ws", websocket_handler)
-    return app
+def read_ws_frame(sock):
+    header = read_exact(sock, 2)
+    opcode = header[0] & 0x0F
+    masked = bool(header[1] & 0x80)
+    length = header[1] & 0x7F
+    if length == 126:
+        length = int.from_bytes(read_exact(sock, 2), "big")
+    elif length == 127:
+        length = int.from_bytes(read_exact(sock, 8), "big")
+    mask = read_exact(sock, 4) if masked else b""
+    payload = read_exact(sock, length) if length else b""
+    if masked:
+        payload = bytes(byte ^ mask[index % 4] for index, byte in enumerate(payload))
+    return opcode, payload
+
+
+class LiveStreamHandler(BaseHTTPRequestHandler):
+    player_command = DEFAULT_PLAYER_COMMAND
+
+    def log_message(self, format, *args):
+        print(f"[live] {self.address_string()} {format % args}")
+
+    def do_GET(self):
+        if self.path == "/":
+            body = PAGE_HTML.encode("utf-8")
+            self.send_response(HTTPStatus.OK)
+            self.send_header("content-type", "text/html; charset=utf-8")
+            self.send_header("content-length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
+        if self.path == "/ws":
+            self.handle_websocket()
+            return
+        self.send_error(HTTPStatus.NOT_FOUND)
+
+    def handle_websocket(self):
+        client_key = self.headers.get("Sec-WebSocket-Key", "")
+        if not client_key:
+            self.send_error(HTTPStatus.BAD_REQUEST)
+            return
+
+        self.send_response(HTTPStatus.SWITCHING_PROTOCOLS)
+        self.send_header("Upgrade", "websocket")
+        self.send_header("Connection", "Upgrade")
+        self.send_header("Sec-WebSocket-Accept", websocket_accept_key(client_key))
+        self.end_headers()
+
+        self.connection.settimeout(None)
+        player = StreamingPlayer(self.player_command)
+        try:
+            while True:
+                opcode, payload = read_ws_frame(self.connection)
+                if opcode == 0x2:
+                    player.write(payload)
+                elif opcode == 0x1 and payload.decode("utf-8", errors="ignore") == "stop":
+                    break
+                elif opcode == 0x8:
+                    break
+        except (ConnectionError, OSError, socket.timeout):
+            pass
+        finally:
+            player.stop()
+
+
+def create_handler(player_command=DEFAULT_PLAYER_COMMAND):
+    return type(
+        "ConfiguredLiveStreamHandler",
+        (LiveStreamHandler,),
+        {"player_command": player_command},
+    )
+
+
+def run_server(host="127.0.0.1", port=8787, player_command=DEFAULT_PLAYER_COMMAND):
+    server = ThreadingHTTPServer((host, port), create_handler(player_command))
+    print(f"[live] listening on http://{host}:{port}")
+    server.serve_forever()
 
 
 def parse_args():
@@ -269,7 +260,7 @@ def parse_args():
 
 def main():
     args = parse_args()
-    web.run_app(create_app(args.player_command), host=args.host, port=args.port)
+    run_server(args.host, args.port, args.player_command)
 
 
 if __name__ == "__main__":
