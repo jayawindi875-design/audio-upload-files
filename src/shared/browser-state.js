@@ -13,10 +13,9 @@ const UI_COPY = {
   zh: {
     eyebrow: "INSTALLATION AUDIO PORTAL",
     heroTitle: "开始通话，让声音直接抵达装置。",
-    heroIntro: "点击开始通话后，手机麦克风会持续把声音同步到云端装置；旧版录音上传已收进 developer 控件。",
+    heroIntro: "点击开始通话后，手机麦克风会持续把声音同步到云端装置。",
     call: {
       title: "实时通话",
-      description: "声音会通过 LiveKit 实时发送到树莓派；设备按你选择的秒数连续延迟播放。",
       start: "开始通话",
       stop: "结束通话",
       playbackTitle: "选择播放时间",
@@ -91,10 +90,9 @@ const UI_COPY = {
   en: {
     eyebrow: "INSTALLATION AUDIO PORTAL",
     heroTitle: "Start a call and send your voice straight to the installation.",
-    heroIntro: "Start a call to stream your phone microphone to the cloud installation. The legacy recording uploader now lives in developer controls.",
+    heroIntro: "Start a call to stream your phone microphone to the cloud installation.",
     call: {
       title: "Live call",
-      description: "LiveKit sends microphone audio to the Raspberry Pi in real time; the device continuously plays it after the selected delay.",
       start: "Start call",
       stop: "End call",
       playbackTitle: "Choose playback time",

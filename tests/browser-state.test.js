@@ -111,14 +111,22 @@ test("returns live-call hero copy", () => {
   );
 });
 
+test("keeps implementation notes out of the public live-call copy", () => {
+  const zh = getUiCopy("zh");
+  const en = getUiCopy("en");
+
+  assert.doesNotMatch(zh.heroIntro, /developer/);
+  assert.doesNotMatch(en.heroIntro, /developer/i);
+  assert.equal(zh.call.description, undefined);
+  assert.equal(en.call.description, undefined);
+});
+
 test("returns English UI copy for the call section", () => {
   const copy = getUiCopy("en");
 
   assert.equal(copy.call.title, "Live call");
   assert.equal(copy.call.start, "Start call");
   assert.equal(copy.call.stop, "End call");
-  assert.match(copy.call.description, /LiveKit/);
-  assert.doesNotMatch(copy.call.description, /one-second audio files/);
 });
 
 test("keeps live-call failures separate from legacy upload failures", () => {

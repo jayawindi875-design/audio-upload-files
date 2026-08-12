@@ -28,7 +28,6 @@ const elements = {
   heroIntro: document.getElementById("hero-intro"),
   langToggle: document.getElementById("lang-toggle"),
   callTitle: document.getElementById("call-title"),
-  callDescription: document.getElementById("call-description"),
   callPlaybackTitle: document.getElementById("call-playback-title"),
   callImmediateLabel: document.getElementById("call-immediate-label"),
   callImmediateHint: document.getElementById("call-immediate-hint"),
@@ -416,7 +415,6 @@ function applyLanguage(language) {
   elements.heroIntro.textContent = copy.heroIntro;
   elements.langToggle.textContent = getToggleLabel(language);
   elements.callTitle.textContent = copy.call.title;
-  elements.callDescription.textContent = copy.call.description;
   elements.callPlaybackTitle.textContent = copy.call.playbackTitle;
   elements.callImmediateLabel.textContent = copy.call.immediate;
   elements.callImmediateHint.textContent = copy.call.immediateHint;

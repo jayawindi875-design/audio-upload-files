@@ -34,6 +34,10 @@ test("shows live call controls as the primary interface", () => {
   assert.match(html, /id="call-delay-seconds"/);
 });
 
+test("removes the public real-time implementation description", () => {
+  assert.doesNotMatch(html, /id="call-description"/);
+});
+
 test("starts the LiveKit call without the legacy recording chunk uploader", () => {
   const start = app.indexOf("async function startCall()");
   const end = app.indexOf("function stopCall()", start);
