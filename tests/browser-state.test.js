@@ -121,6 +121,14 @@ test("returns English UI copy for the call section", () => {
   assert.doesNotMatch(copy.call.description, /one-second audio files/);
 });
 
+test("keeps live-call failures separate from legacy upload failures", () => {
+  assert.deepEqual(getStatusContent("call-error", "The live-call server could not be reached.", "en"), {
+    tone: "error",
+    title: "Call failed",
+    detail: "The live-call server could not be reached."
+  });
+});
+
 test("returns English UI copy for the recorder section", () => {
   const copy = getUiCopy("en");
 

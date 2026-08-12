@@ -626,7 +626,7 @@ async function startCall() {
   const hasMicrophoneApi = Boolean(globalThis.navigator?.mediaDevices?.getUserMedia);
   const hasLivekitClient = Boolean(window.LivekitClient?.Room);
   if (!hasMicrophoneApi || !hasLivekitClient) {
-    setStatus("error", getLiveCallStartupFailure({
+    setStatus("call-error", getLiveCallStartupFailure({
       hasMicrophoneApi,
       hasLivekitClient
     }, currentLanguage));
@@ -635,7 +635,7 @@ async function startCall() {
 
   const delaySeconds = resolveCallDelaySeconds(getCallPlaybackMode(), elements.callDelayInput.value);
   if (delaySeconds === null) {
-    setStatus("error", getErrorMessage("INVALID_DELAY", currentLanguage));
+    setStatus("call-error", getErrorMessage("INVALID_DELAY", currentLanguage));
     elements.callDelayInput.focus();
     return;
   }
@@ -678,7 +678,7 @@ async function startCall() {
     isCalling = false;
     isEndingCall = false;
     callSessionId = "";
-    setStatus("error", getLiveCallStartupFailure({
+    setStatus("call-error", getLiveCallStartupFailure({
       hasMicrophoneApi,
       hasLivekitClient,
       errorName: error?.name

@@ -36,6 +36,7 @@ const UI_COPY = {
       liveDetail: "请保持页面开启，声音会持续发送到装置。",
       endingDetail: "正在等待最后的音频分片上传完成。",
       endedTitle: "通话已结束",
+      failedTitle: "通话失败",
       endedDetail: "麦克风已关闭，已发送的声音会继续由装置播放。"
     },
     recorder: {
@@ -113,6 +114,7 @@ const UI_COPY = {
       liveDetail: "Keep this page open while your voice is sent to the installation.",
       endingDetail: "Waiting for the final audio chunks to finish uploading.",
       endedTitle: "Call ended",
+      failedTitle: "Call failed",
       endedDetail: "The microphone is off. Queued audio will keep playing on the installation."
     },
     recorder: {
@@ -296,6 +298,14 @@ export function getStatusContent(status, detail = "", language = "zh") {
       tone: "success",
       title: copy.call.endedTitle,
       detail: detail || copy.call.endedDetail
+    };
+  }
+
+  if (status === "call-error") {
+    return {
+      tone: "error",
+      title: copy.call.failedTitle,
+      detail: detail || copy.errors.liveCallConnectionFailed
     };
   }
 
