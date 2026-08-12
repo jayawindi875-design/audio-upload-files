@@ -3,6 +3,7 @@ import unittest
 
 from consumer.livekit_receiver import (
     DelayedPcmBuffer,
+    LiveKitAudioReceiver,
     format_livekit_audio_frame,
     format_livekit_track_subscription,
     normalize_live_delay_seconds,
@@ -46,6 +47,23 @@ class DelayedPcmBufferTests(unittest.IsolatedAsyncioTestCase):
             format_livekit_audio_frame("web-example", byte_count=1920, delay_seconds=10),
             "[livekit] first_audio_frame identity=web-example bytes=1920 delay_seconds=10",
         )
+
+
+class LiveKitAudioReceiverSubscriptionTests(unittest.TestCase):
+    def test_keeps_only_the_latest_audio_track_for_each_web_participant(self):
+        receiver = LiveKitAudioReceiver(
+            url="wss://example.livekit.cloud",
+            api_key="test-key",
+            api_secret="test-secret",
+        )
+        begin = getattr(receiver, "_begin_audio_subscription", lambda *_: ("missing", None))
+        finish = getattr(receiver, "_finish_audio_subscription", lambda *_: False)
+
+        self.assertEqual(begin("web-example", "TR_first"), (True, None))
+        self.assertEqual(begin("web-example", "TR_first"), (False, None))
+        self.assertEqual(begin("web-example", "TR_reconnected"), (True, "TR_first"))
+        self.assertFalse(finish("web-example", "TR_first"))
+        self.assertTrue(finish("web-example", "TR_reconnected"))
 
 
 if __name__ == "__main__":

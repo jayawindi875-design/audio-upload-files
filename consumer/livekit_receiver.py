@@ -112,6 +112,8 @@ class LiveKitAudioReceiver:
         self.volume_status_reporter = volume_status_reporter
         self._volume_controller = None
         self._audio_tasks: set[asyncio.Task] = set()
+        self._audio_tasks_by_track: dict[str, asyncio.Task] = {}
+        self._active_audio_track_by_identity: dict[str, str] = {}
         self._audio_started_for_identities: set[str] = set()
         self._stop = asyncio.Event()
 
@@ -143,6 +145,24 @@ class LiveKitAudioReceiver:
         if delay is not None:
             self.delays_by_identity[packet.participant.identity] = delay
 
+    def _begin_audio_subscription(self, identity: str, track_sid: str) -> tuple[bool, str | None]:
+        previous_track_sid = self._active_audio_track_by_identity.get(identity)
+        if previous_track_sid == track_sid:
+            return False, None
+        self._active_audio_track_by_identity[identity] = track_sid
+        return True, previous_track_sid
+
+    def _finish_audio_subscription(self, identity: str, track_sid: str) -> bool:
+        if self._active_audio_track_by_identity.get(identity) != track_sid:
+            return False
+        del self._active_audio_track_by_identity[identity]
+        return True
+
+    def _cancel_audio_task(self, track_sid: str) -> None:
+        task = self._audio_tasks_by_track.pop(track_sid, None)
+        if task is not None:
+            task.cancel()
+
     async def _consume_audio(self, track, participant) -> None:
         stream = rtc.AudioStream(track, sample_rate=48000, num_channels=1)
         try:
@@ -169,15 +189,37 @@ class LiveKitAudioReceiver:
         room = rtc.Room()
         room.on("data_received", self._handle_data)
 
-        def handle_track(track, _publication, participant):
+        def handle_track(track, publication, participant):
             if track.kind != rtc.TrackKind.KIND_AUDIO:
                 return
+            track_sid = publication.sid or track.sid
+            should_start, previous_track_sid = self._begin_audio_subscription(participant.identity, track_sid)
+            if not should_start:
+                return
+            if previous_track_sid:
+                self._cancel_audio_task(previous_track_sid)
             print(format_livekit_track_subscription(participant.identity, "audio"))
             task = asyncio.create_task(self._consume_audio(track, participant))
             self._audio_tasks.add(task)
-            task.add_done_callback(self._audio_tasks.discard)
+            self._audio_tasks_by_track[track_sid] = task
+
+            def finish_audio_task(completed_task):
+                self._audio_tasks.discard(completed_task)
+                if self._audio_tasks_by_track.get(track_sid) is completed_task:
+                    self._audio_tasks_by_track.pop(track_sid, None)
+                    self._finish_audio_subscription(participant.identity, track_sid)
+
+            task.add_done_callback(finish_audio_task)
+
+        def handle_track_unsubscribed(track, publication, participant):
+            if track.kind != rtc.TrackKind.KIND_AUDIO:
+                return
+            track_sid = publication.sid or track.sid
+            self._cancel_audio_task(track_sid)
+            self._finish_audio_subscription(participant.identity, track_sid)
 
         room.on("track_subscribed", handle_track)
+        room.on("track_unsubscribed", handle_track_unsubscribed)
         if self.volume_config.enabled:
             self._volume_controller = LidarVolumeController(
                 self.volume_config,
