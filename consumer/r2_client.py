@@ -14,7 +14,7 @@ class R2QueueClient:
         access_key_id: str,
         secret_access_key: str,
         bucket_name: str,
-        volume_config_cache_seconds: float = 30,
+        volume_config_cache_seconds: float = 1,
         clock=time.time,
     ):
         try:

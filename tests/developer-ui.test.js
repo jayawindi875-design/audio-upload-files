@@ -98,16 +98,18 @@ test("keeps the live volume debug readout inside the developer panel", () => {
   assert.ok(readout > panelStart);
 });
 
-test("keeps radar selection controls inside the developer panel", () => {
+test("keeps only acceptance-relevant volume controls in the developer panel", () => {
   const panelStart = html.indexOf('id="developer-panel"');
-  const baselineRevolutions = html.indexOf('id="baseline-revolutions"');
-  const baselineBin = html.indexOf('id="baseline-bin-degrees"');
-  const threshold = html.indexOf('id="change-threshold-mm"');
-  const stableHold = html.indexOf('id="stable-hold-seconds"');
 
   assert.ok(panelStart >= 0);
-  assert.ok(baselineRevolutions > panelStart);
-  assert.ok(baselineBin > panelStart);
-  assert.ok(threshold > panelStart);
-  assert.ok(stableHold > panelStart);
+  assert.match(html, /id="volume-mode"/);
+  assert.match(html, /id="min-distance-mm"/);
+  assert.match(html, /id="max-distance-mm"/);
+  assert.match(html, /id="min-volume-percent"/);
+  assert.match(html, /id="max-volume-percent"/);
+  assert.doesNotMatch(html, /id="baseline-revolutions"/);
+  assert.doesNotMatch(html, /id="baseline-bin-degrees"/);
+  assert.doesNotMatch(html, /id="change-threshold-mm"/);
+  assert.doesNotMatch(html, /id="stable-hold-seconds"/);
+  assert.doesNotMatch(app, /baselineRevolutions|baselineBinDegrees|changeThresholdMm|stableHoldSeconds/);
 });

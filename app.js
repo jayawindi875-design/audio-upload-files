@@ -72,10 +72,6 @@ const elements = {
   minVolume: document.getElementById("min-volume-percent"),
   maxVolume: document.getElementById("max-volume-percent"),
   sensitivity: document.getElementById("volume-sensitivity"),
-  baselineRevolutions: document.getElementById("baseline-revolutions"),
-  baselineBin: document.getElementById("baseline-bin-degrees"),
-  changeThreshold: document.getElementById("change-threshold-mm"),
-  stableHold: document.getElementById("stable-hold-seconds"),
   developerSave: document.getElementById("developer-save"),
   developerStatus: document.getElementById("developer-status"),
   volumeDebugCurrent: document.getElementById("volume-debug-current"),
@@ -305,11 +301,7 @@ function getDeveloperConfigFormValue() {
     maxDistanceMm: elements.maxDistance.value,
     minVolumePercent: elements.minVolume.value,
     maxVolumePercent: elements.maxVolume.value,
-    sensitivity: elements.sensitivity.value,
-    baselineRevolutions: elements.baselineRevolutions.value,
-    baselineBinDegrees: elements.baselineBin.value,
-    changeThresholdMm: elements.changeThreshold.value,
-    stableHoldSeconds: elements.stableHold.value
+    sensitivity: elements.sensitivity.value
   };
 }
 
@@ -324,10 +316,6 @@ function applyDeveloperConfigToForm(config) {
   elements.minVolume.value = String(config.minVolumePercent ?? 20);
   elements.maxVolume.value = String(config.maxVolumePercent ?? 85);
   elements.sensitivity.value = String(config.sensitivity ?? 1.6);
-  elements.baselineRevolutions.value = String(config.baselineRevolutions ?? 3);
-  elements.baselineBin.value = String(config.baselineBinDegrees ?? 5);
-  elements.changeThreshold.value = String(config.changeThresholdMm ?? 200);
-  elements.stableHold.value = String(config.stableHoldSeconds ?? 30);
 }
 
 async function loadDeveloperConfig() {

@@ -176,6 +176,17 @@ def select_distance_for_volume(points, config: VolumeControlConfig) -> int | Non
     return distances[percentile_index]
 
 
+def direct_distance_reading_for_revolution(points, config: VolumeControlConfig) -> DistanceReading:
+    """Return the live distance for the just-finished LiDAR revolution."""
+    point_count = len(points)
+    distance = select_distance_for_volume(points, config)
+    return DistanceReading(
+        distance_mm=distance,
+        message="direct_measurement" if distance is not None else "no_valid_distance",
+        baseline_points=point_count,
+    )
+
+
 def _median_distance(distances: list[int]) -> int:
     values = sorted(distances)
     if not values:
@@ -317,6 +328,11 @@ class LidarDistanceReader:
             stable_hold_seconds=stable_hold_seconds,
         ).normalized()
 
+    def update_config(self, config: VolumeControlConfig) -> None:
+        self.config = config.normalized()
+        self.min_distance_mm = self.config.min_distance_mm
+        self.max_distance_mm = self.config.max_distance_mm
+
     def read_distances(self, stop_event: threading.Event):
         try:
             import serial
@@ -338,9 +354,7 @@ class LidarDistanceReader:
             return
 
         last_angle = 0
-        circle_count = 0
         all_valid_points = []
-        baseline_tracker = BaselineDistanceTracker(self.config)
 
         with ser:
             while not stop_event.is_set():
@@ -363,6 +377,14 @@ class LidarDistanceReader:
                     angle_diff = (end_angle - start_angle + 360) % 360
                     angle_step = angle_diff / 15.0
 
+                    if last_angle - start_angle > 100:
+                        if all_valid_points:
+                            yield direct_distance_reading_for_revolution(
+                                all_valid_points,
+                                self.config,
+                            )
+                        all_valid_points.clear()
+
                     for index in range(16):
                         offset = 4 + index * 3
                         distance = data[offset] * 256 + data[offset + 1]
@@ -370,15 +392,9 @@ class LidarDistanceReader:
                         angle = (start_angle + angle_step * index) % 360
                         if (
                             intensity >= MIN_VALID_INTENSITY
-                            and self.min_distance_mm <= distance <= self.max_distance_mm
+                            and 1 <= distance <= 12000
                         ):
                             all_valid_points.append((distance, angle))
-
-                    if last_angle - start_angle > 100:
-                        circle_count += 1
-                        if circle_count % 3 == 0 and all_valid_points:
-                            yield baseline_tracker.process_revolution(all_valid_points)
-                            all_valid_points.clear()
                     last_angle = start_angle
                 except Exception as exc:
                     print(f"[volume] lidar read error: {exc}")
@@ -393,6 +409,7 @@ class LidarVolumeController:
         sink: str = "@DEFAULT_SINK@",
         command_runner=subprocess.run,
         status_reporter=None,
+        volume_config_provider=None,
         clock=time.time,
     ):
         self.config = config.normalized()
@@ -410,6 +427,7 @@ class LidarVolumeController:
         self.sink = sink
         self.command_runner = command_runner
         self.status_reporter = status_reporter
+        self.volume_config_provider = volume_config_provider
         self.clock = clock
         self._last_status_report_time = None
         self.stop_event = threading.Event()
@@ -430,6 +448,24 @@ class LidarVolumeController:
             ["pactl", "set-sink-volume", self.sink, f"{volume_percent}%"],
             check=False,
         )
+
+    def _refresh_config(self) -> None:
+        if not self.volume_config_provider:
+            return
+
+        try:
+            payload = self.volume_config_provider()
+        except Exception as exc:
+            print(f"[volume] unable to refresh volume config: {exc}")
+            return
+
+        if payload is None:
+            return
+
+        self.config = VolumeControlConfig.from_dict(payload)
+        update_reader_config = getattr(self.distance_reader, "update_config", None)
+        if callable(update_reader_config):
+            update_reader_config(self.config)
 
     def _report_status(self, payload: dict, force: bool = False):
         if not self.status_reporter:
@@ -473,6 +509,17 @@ class LidarVolumeController:
         for reading in self.distance_reader.read_distances(self.stop_event):
             if self.stop_event.is_set():
                 return
+            self._refresh_config()
+            if not self.config.enabled:
+                self._report_status(
+                    {
+                        "active": False,
+                        "volumePercent": None,
+                        "distanceMm": None,
+                        "message": "volume_control_disabled",
+                    }
+                )
+                continue
             if isinstance(reading, DistanceReading):
                 if reading.distance_mm is None:
                     self._report_status({

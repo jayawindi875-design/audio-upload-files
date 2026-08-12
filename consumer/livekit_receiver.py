@@ -112,6 +112,7 @@ class LiveKitAudioReceiver:
         player: RealtimePcmPlayer | None = None,
         volume_config: dict | None = None,
         volume_status_reporter=None,
+        volume_config_provider=None,
     ):
         self.url = url
         self.api_key = api_key
@@ -121,6 +122,7 @@ class LiveKitAudioReceiver:
         self.delays_by_identity: dict[str, int] = {}
         self.volume_config = VolumeControlConfig.from_dict(volume_config)
         self.volume_status_reporter = volume_status_reporter
+        self.volume_config_provider = volume_config_provider
         self._volume_controller = None
         self._audio_tasks: set[asyncio.Task] = set()
         self._audio_tasks_by_track: dict[str, asyncio.Task] = {}
@@ -241,6 +243,7 @@ class LiveKitAudioReceiver:
             self._volume_controller = LidarVolumeController(
                 self.volume_config,
                 status_reporter=self.volume_status_reporter,
+                volume_config_provider=self.volume_config_provider,
             )
             self._volume_controller.start()
         drain_task = asyncio.create_task(self._drain_buffer())
@@ -260,7 +263,11 @@ class LiveKitAudioReceiver:
         self._stop.set()
 
 
-def build_receiver_from_env(volume_config=None, volume_status_reporter=None) -> LiveKitAudioReceiver:
+def build_receiver_from_env(
+    volume_config=None,
+    volume_status_reporter=None,
+    volume_config_provider=None,
+) -> LiveKitAudioReceiver:
     load_dotenv(Path(__file__).resolve().parents[1] / ".env", override=False)
     required = ("LIVEKIT_URL", "LIVEKIT_API_KEY", "LIVEKIT_API_SECRET")
     missing = [name for name in required if not os.environ.get(name, "").strip()]
@@ -272,6 +279,7 @@ def build_receiver_from_env(volume_config=None, volume_status_reporter=None) -> 
         api_secret=os.environ["LIVEKIT_API_SECRET"].strip(),
         volume_config=volume_config,
         volume_status_reporter=volume_status_reporter,
+        volume_config_provider=volume_config_provider,
     )
     player_command = os.environ.get("LIVEKIT_PCM_PLAYER_COMMAND", "").strip()
     if player_command:

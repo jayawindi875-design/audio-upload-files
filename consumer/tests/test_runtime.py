@@ -2,8 +2,10 @@ import os
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from consumer.config import ConsumerConfig
+from consumer import main
 from consumer.main import run_consumer_loop
 from consumer.player import CommandPlayer, NoopPlayer, build_player
 
@@ -164,6 +166,45 @@ class RuntimeTests(unittest.TestCase):
                 ("sleep", 1),
             ],
         )
+
+    def test_loads_dotenv_before_building_live_volume_services(self):
+        original_env = os.environ.copy()
+
+        class FakeR2Client:
+            def __init__(self, **kwargs):
+                self.kwargs = kwargs
+
+            def get_volume_config(self):
+                return {"mode": "nearer_louder"}
+
+            def put_volume_status(self, status):
+                return status
+
+        def load_service_environment(*args, **kwargs):
+            os.environ.update(
+                {
+                    "R2_ENDPOINT": "https://example.r2.cloudflarestorage.com",
+                    "R2_ACCESS_KEY_ID": "abc",
+                    "R2_SECRET_ACCESS_KEY": "def",
+                    "R2_BUCKET": "audio-upload-files",
+                    "CONSUMER_SKIP_DOTENV": "true",
+                }
+            )
+
+        try:
+            with patch.dict(os.environ, {}, clear=True), patch(
+                "consumer.main.load_dotenv", side_effect=load_service_environment
+            ) as load_dotenv, patch("consumer.main.R2QueueClient", FakeR2Client):
+                volume_config, status_reporter, volume_config_provider = main.build_volume_services_from_env()
+        finally:
+            os.environ.clear()
+            os.environ.update(original_env)
+
+        self.assertEqual(volume_config, {"mode": "nearer_louder"})
+        self.assertTrue(callable(status_reporter))
+        self.assertTrue(callable(volume_config_provider))
+        self.assertEqual(volume_config_provider(), {"mode": "nearer_louder"})
+        load_dotenv.assert_called_once()
 
 
 if __name__ == "__main__":

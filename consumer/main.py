@@ -1,6 +1,10 @@
 import argparse
 import asyncio
+import os
 import time
+from pathlib import Path
+
+from dotenv import load_dotenv
 
 from consumer.config import ConsumerConfig
 from consumer.player import build_player
@@ -48,9 +52,10 @@ def run_consumer(run_once: bool = False):
 
 def build_volume_services_from_env():
     """Reuse the existing R2 volume config/status channel when it is configured."""
+    load_dotenv(Path(__file__).resolve().parents[1] / ".env", override=False)
     r2_names = ("R2_ENDPOINT", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY", "R2_BUCKET")
-    if not all(__import__("os").environ.get(name, "").strip() for name in r2_names):
-        return None, None
+    if not all(os.environ.get(name, "").strip() for name in r2_names):
+        return None, None, None
     config = ConsumerConfig.from_env()
     r2_client = R2QueueClient(
         endpoint_url=config.endpoint_url,
@@ -58,14 +63,19 @@ def build_volume_services_from_env():
         secret_access_key=config.secret_access_key,
         bucket_name=config.bucket_name,
     )
-    return r2_client.get_volume_config(), r2_client.put_volume_status
+    return (
+        r2_client.get_volume_config(),
+        r2_client.put_volume_status,
+        r2_client.get_volume_config,
+    )
 
 
 def run_livekit_receiver():
-    volume_config, volume_status_reporter = build_volume_services_from_env()
+    volume_config, volume_status_reporter, volume_config_provider = build_volume_services_from_env()
     receiver = build_receiver_from_env(
         volume_config=volume_config,
         volume_status_reporter=volume_status_reporter,
+        volume_config_provider=volume_config_provider,
     )
     asyncio.run(receiver.run())
 

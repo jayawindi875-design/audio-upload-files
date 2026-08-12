@@ -4,7 +4,9 @@ from unittest.mock import patch
 from consumer.volume_control import (
     BaselineDistanceTracker,
     DistanceReading,
+    LidarVolumeController,
     VolumeControlConfig,
+    direct_distance_reading_for_revolution,
     discover_lidar_device,
     filter_distances_for_volume,
     map_distance_to_volume_percent,
@@ -201,6 +203,25 @@ class VolumeControlTests(unittest.TestCase):
 
         self.assertEqual(select_distance_for_volume([(900, 90), (1300, 120)], config), 1300)
 
+    def test_direct_revolution_measurement_uses_current_lidar_scan(self):
+        config = VolumeControlConfig(
+            min_distance_mm=400,
+            max_distance_mm=2500,
+            angle_center_degrees=90,
+            angle_width_degrees=40,
+            distance_percentile=50,
+        )
+
+        reading = direct_distance_reading_for_revolution(
+            [(700, 10), (800, 80), (1200, 90), (1600, 100)],
+            config,
+        )
+
+        self.assertEqual(reading.distance_mm, 1200)
+        self.assertEqual(reading.message, "direct_measurement")
+        self.assertEqual(reading.changed_points, 0)
+        self.assertEqual(reading.baseline_points, 4)
+
     def test_higher_sensitivity_makes_middle_distance_changes_more_obvious(self):
         linear = VolumeControlConfig(
             min_distance_mm=400,
@@ -259,8 +280,6 @@ class VolumeControlTests(unittest.TestCase):
             )
 
     def test_volume_controller_reports_status_at_one_second_rate(self):
-        from consumer.volume_control import LidarVolumeController
-
         class FakeDistanceReader:
             def read_distances(self, stop_event):
                 yield 400
@@ -292,6 +311,60 @@ class VolumeControlTests(unittest.TestCase):
         )
         self.assertEqual(status_updates[0]["distanceMm"], 400)
         self.assertEqual(status_updates[1]["distanceMm"], 1400)
+
+    def test_volume_controller_applies_saved_config_while_live_call_is_running(self):
+        class FakeDistanceReader:
+            def __init__(self):
+                self.config_updates = []
+
+            def update_config(self, config):
+                self.config_updates.append(config)
+
+            def read_distances(self, stop_event):
+                yield 400
+                yield 400
+
+        reader = FakeDistanceReader()
+        volumes = []
+        saved_configs = iter(
+            [
+                {
+                    "mode": "farther_louder",
+                    "minDistanceMm": 400,
+                    "maxDistanceMm": 1400,
+                    "minVolumePercent": 10,
+                    "maxVolumePercent": 110,
+                    "sensitivity": 1.0,
+                },
+                {
+                    "mode": "nearer_louder",
+                    "minDistanceMm": 400,
+                    "maxDistanceMm": 1400,
+                    "minVolumePercent": 10,
+                    "maxVolumePercent": 110,
+                    "sensitivity": 1.0,
+                },
+            ]
+        )
+
+        controller = LidarVolumeController(
+            VolumeControlConfig(
+                min_distance_mm=400,
+                max_distance_mm=1400,
+                min_volume_percent=10,
+                max_volume_percent=110,
+                sensitivity=1.0,
+            ),
+            distance_reader=reader,
+            command_runner=lambda command, check: volumes.append(command[-1]),
+            volume_config_provider=lambda: next(saved_configs),
+            clock=iter([100.0, 101.0]).__next__,
+        )
+
+        controller._run()
+
+        self.assertEqual(volumes, ["10%", "110%"])
+        self.assertEqual([config.mode for config in reader.config_updates], ["farther_louder", "nearer_louder"])
 
 
 if __name__ == "__main__":
