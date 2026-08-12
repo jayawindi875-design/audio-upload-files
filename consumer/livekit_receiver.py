@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import heapq
+import inspect
 import json
 import os
 import subprocess
@@ -43,6 +44,12 @@ def format_livekit_audio_frame(identity: str, *, byte_count: int, delay_seconds:
         f"[livekit] first_audio_frame identity={identity} "
         f"bytes={byte_count} delay_seconds={delay_seconds}"
     )
+
+
+async def disconnect_room(room) -> None:
+    result = room.disconnect()
+    if inspect.isawaitable(result):
+        await result
 
 
 @dataclass
@@ -244,7 +251,7 @@ class LiveKitAudioReceiver:
             self._stop.set()
             drain_task.cancel()
             await asyncio.gather(drain_task, *self._audio_tasks, return_exceptions=True)
-            room.disconnect()
+            await disconnect_room(room)
             self.player.close()
             if self._volume_controller:
                 self._volume_controller.stop()

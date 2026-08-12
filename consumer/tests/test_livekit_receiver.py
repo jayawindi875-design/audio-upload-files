@@ -4,6 +4,7 @@ import unittest
 from consumer.livekit_receiver import (
     DelayedPcmBuffer,
     LiveKitAudioReceiver,
+    disconnect_room,
     format_livekit_audio_frame,
     format_livekit_track_subscription,
     normalize_live_delay_seconds,
@@ -77,6 +78,23 @@ class LiveKitAudioReceiverSubscriptionTests(unittest.TestCase):
         self.assertEqual(begin("web-reconnected", "TR_reconnected"), (True, ("web-example", "TR_first")))
         self.assertFalse(finish("web-example", "TR_first"))
         self.assertTrue(finish("web-reconnected", "TR_reconnected"))
+
+
+class LiveKitRoomLifecycleTests(unittest.IsolatedAsyncioTestCase):
+    async def test_waits_for_an_async_room_disconnect(self):
+        class AsyncRoom:
+            def __init__(self):
+                self.disconnected = False
+
+            async def disconnect(self):
+                await asyncio.sleep(0)
+                self.disconnected = True
+
+        room = AsyncRoom()
+
+        await disconnect_room(room)
+
+        self.assertTrue(room.disconnected)
 
 
 if __name__ == "__main__":
