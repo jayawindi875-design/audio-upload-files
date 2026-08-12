@@ -7,8 +7,10 @@ import os
 import subprocess
 import time
 from dataclasses import dataclass, field
+from pathlib import Path
 
 from livekit import api, rtc
+from dotenv import load_dotenv
 
 from consumer.volume_control import LidarVolumeController, VolumeControlConfig
 
@@ -180,6 +182,7 @@ class LiveKitAudioReceiver:
 
 
 def build_receiver_from_env(volume_config=None, volume_status_reporter=None) -> LiveKitAudioReceiver:
+    load_dotenv(Path(__file__).resolve().parents[1] / ".env", override=False)
     required = ("LIVEKIT_URL", "LIVEKIT_API_KEY", "LIVEKIT_API_SECRET")
     missing = [name for name in required if not os.environ.get(name, "").strip()]
     if missing:
