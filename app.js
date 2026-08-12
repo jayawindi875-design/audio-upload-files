@@ -661,7 +661,9 @@ async function startCall() {
     await room.connect(credentials.url, credentials.token);
     callRoom = room;
     await publishDelay();
-    await room.localParticipant.publishTrack(callStream.getAudioTracks()[0]);
+    await room.localParticipant.publishTrack(callStream.getAudioTracks()[0], {
+      source: window.LivekitClient.Track.Source.Microphone
+    });
     isRequestingCallMicrophone = false;
     isCalling = true;
     setStatus("calling", copy.call.liveDetail);

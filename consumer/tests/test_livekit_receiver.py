@@ -1,7 +1,12 @@
 import asyncio
 import unittest
 
-from consumer.livekit_receiver import DelayedPcmBuffer, normalize_live_delay_seconds
+from consumer.livekit_receiver import (
+    DelayedPcmBuffer,
+    format_livekit_audio_frame,
+    format_livekit_track_subscription,
+    normalize_live_delay_seconds,
+)
 
 
 class DelayedPcmBufferTests(unittest.IsolatedAsyncioTestCase):
@@ -31,6 +36,16 @@ class DelayedPcmBufferTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(normalize_live_delay_seconds(-1))
         self.assertIsNone(normalize_live_delay_seconds(61))
         self.assertIsNone(normalize_live_delay_seconds("1.5"))
+
+    async def test_formats_non_sensitive_livekit_runtime_events(self):
+        self.assertEqual(
+            format_livekit_track_subscription("web-example", "audio"),
+            "[livekit] subscribed identity=web-example kind=audio",
+        )
+        self.assertEqual(
+            format_livekit_audio_frame("web-example", byte_count=1920, delay_seconds=10),
+            "[livekit] first_audio_frame identity=web-example bytes=1920 delay_seconds=10",
+        )
 
 
 if __name__ == "__main__":

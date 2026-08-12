@@ -34,6 +34,17 @@ def normalize_live_delay_seconds(value) -> int | None:
     return seconds if 0 <= seconds <= MAX_LIVE_DELAY_SECONDS and str(seconds) == str(value).strip() else None
 
 
+def format_livekit_track_subscription(identity: str, kind: str) -> str:
+    return f"[livekit] subscribed identity={identity} kind={kind}"
+
+
+def format_livekit_audio_frame(identity: str, *, byte_count: int, delay_seconds: int) -> str:
+    return (
+        f"[livekit] first_audio_frame identity={identity} "
+        f"bytes={byte_count} delay_seconds={delay_seconds}"
+    )
+
+
 @dataclass
 class DelayedPcmBuffer:
     clock: callable = time.monotonic
@@ -101,6 +112,7 @@ class LiveKitAudioReceiver:
         self.volume_status_reporter = volume_status_reporter
         self._volume_controller = None
         self._audio_tasks: set[asyncio.Task] = set()
+        self._audio_started_for_identities: set[str] = set()
         self._stop = asyncio.Event()
 
     def create_join_token(self) -> str:
@@ -136,6 +148,13 @@ class LiveKitAudioReceiver:
         try:
             async for event in stream:
                 delay = self.delays_by_identity.get(participant.identity, 0)
+                if participant.identity not in self._audio_started_for_identities:
+                    self._audio_started_for_identities.add(participant.identity)
+                    print(format_livekit_audio_frame(
+                        participant.identity,
+                        byte_count=len(event.frame.data.tobytes()),
+                        delay_seconds=delay,
+                    ))
                 self.buffer.push(event.frame.data.tobytes(), delay)
         finally:
             await stream.aclose()
@@ -153,6 +172,7 @@ class LiveKitAudioReceiver:
         def handle_track(track, _publication, participant):
             if track.kind != rtc.TrackKind.KIND_AUDIO:
                 return
+            print(format_livekit_track_subscription(participant.identity, "audio"))
             task = asyncio.create_task(self._consume_audio(track, participant))
             self._audio_tasks.add(task)
             task.add_done_callback(self._audio_tasks.discard)
