@@ -644,30 +644,34 @@ async function startCall() {
   updateCallReadout("connecting");
   refreshControls();
 
+  let room = null;
   try {
+    callStream = await navigator.mediaDevices.getUserMedia({ audio: true });
     const response = await fetch("/api/livekit-token", { method: "POST" });
     const credentials = await response.json();
     if (!response.ok || !credentials?.token || !credentials?.url) {
       throw new Error("token unavailable");
     }
-    const room = new window.LivekitClient.Room();
+    room = new window.LivekitClient.Room();
     const publishDelay = () => room.localParticipant.publishData(
       new TextEncoder().encode(JSON.stringify({ type: "playback-delay", seconds: delaySeconds })),
       { reliable: true, topic: "playback-delay" }
     );
     room.on(window.LivekitClient.RoomEvent.Reconnected, publishDelay);
     await room.connect(credentials.url, credentials.token);
-    await publishDelay();
-    await room.localParticipant.setMicrophoneEnabled(true);
     callRoom = room;
+    await publishDelay();
+    await room.localParticipant.publishTrack(callStream.getAudioTracks()[0]);
     isRequestingCallMicrophone = false;
     isCalling = true;
     setStatus("calling", copy.call.liveDetail);
     updateCallReadout("live");
     refreshControls();
   } catch (error) {
-    callRoom?.disconnect();
+    room?.disconnect();
     callRoom = null;
+    callStream?.getTracks().forEach((track) => track.stop());
+    callStream = null;
     isRequestingCallMicrophone = false;
     isCalling = false;
     isEndingCall = false;
@@ -691,6 +695,8 @@ function stopCall() {
     refreshControls();
     callRoom?.disconnect();
     callRoom = null;
+    callStream?.getTracks().forEach((track) => track.stop());
+    callStream = null;
     isEndingCall = false;
     setStatus("call-ended", getUiCopy(currentLanguage).call.endedDetail);
     updateCallReadout("ended");

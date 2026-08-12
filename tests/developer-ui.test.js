@@ -41,8 +41,20 @@ test("starts the LiveKit call without the legacy recording chunk uploader", () =
 
   assert.ok(start >= 0);
   assert.ok(end > start);
-  assert.match(startCall, /setMicrophoneEnabled\(true\)/);
+  assert.match(startCall, /publishTrack\(callStream\.getAudioTracks\(\)\[0\]\)/);
   assert.doesNotMatch(startCall, /startNextCallChunk|sessionMimeType|MediaRecorder/);
+});
+
+test("captures the microphone during the click before connecting to LiveKit", () => {
+  const start = app.indexOf("async function startCall()");
+  const end = app.indexOf("function stopCall()", start);
+  const startCall = app.slice(start, end);
+
+  assert.match(
+    startCall,
+    /await navigator\.mediaDevices\.getUserMedia\(\{ audio: true \}\)[\s\S]*await fetch\("\/api\/livekit-token"/
+  );
+  assert.match(startCall, /publishTrack\(callStream\.getAudioTracks\(\)\[0\]\)/);
 });
 
 test("keeps the legacy recorder uploader inside the developer panel", () => {
