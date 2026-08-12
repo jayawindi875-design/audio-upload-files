@@ -24,7 +24,8 @@ test("shows live call controls as the primary interface", () => {
   assert.match(html, /id="call-start-button"/);
   assert.match(html, /id="call-stop-button"/);
   assert.match(html, /id="call-stream-status"/);
-  assert.match(html, /livekit-client\.umd\.min\.js/);
+  assert.match(html, /src="\/vendor\/livekit-client\.umd\.min\.js"/);
+  assert.doesNotMatch(html, /cdn\.jsdelivr\.net\/npm\/livekit-client/);
   assert.doesNotMatch(html, /id="call-chunks-sent"/);
   assert.doesNotMatch(html, /id="call-pending-uploads"/);
   assert.match(html, /name="call-playback-mode" value="immediate"/);
