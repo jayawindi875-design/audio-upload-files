@@ -79,6 +79,9 @@ const UI_COPY = {
       storageNotConfigured: "云端存储尚未配置完成，请检查 Cloudflare R2 绑定。",
       invalidDelay: `延迟时间必须是 1 到 ${MAX_DELAY_SECONDS} 之间的整数秒。`,
       recorderUnsupported: "当前浏览器不支持网页录音，请尝试使用最新版 Safari、Chrome 或 Edge。",
+      liveCallMicrophoneUnavailable: "当前应用内浏览器无法使用麦克风。请在 Chrome、Safari 或 Edge 中打开此链接。",
+      liveCallClientUnavailable: "实时通话组件没有加载完成。请刷新页面后重试。",
+      liveCallConnectionFailed: "当前网络无法连接实时通话服务器。请更换网络或使用 VPN 后重试。",
       microphoneDenied: "麦克风权限未开启，请允许浏览器访问麦克风后重试。",
       recorderEmpty: "请先完成一段录音，再上传。",
       unknown: "出现了未预期的问题，请稍后再试。"
@@ -153,6 +156,9 @@ const UI_COPY = {
       storageNotConfigured: "Storage is not configured yet. Please check the Cloudflare R2 binding.",
       invalidDelay: `Delay must be a whole number from 1 to ${MAX_DELAY_SECONDS} seconds.`,
       recorderUnsupported: "This browser cannot record audio here. Try the latest Safari, Chrome or Edge.",
+      liveCallMicrophoneUnavailable: "This in-app browser cannot access the microphone. Open this link in Chrome, Safari or Edge.",
+      liveCallClientUnavailable: "The live-call component did not load. Refresh the page and try again.",
+      liveCallConnectionFailed: "The live-call server could not be reached from this network. Try another network or a VPN.",
       microphoneDenied: "Microphone access was denied. Please allow microphone permission and try again.",
       recorderEmpty: "Please finish a recording before uploading it.",
       unknown: "Something unexpected happened. Please try again."
@@ -232,6 +238,28 @@ export function resolveCallDelaySeconds(playbackMode, delayValue) {
 
 export function canStartCall({ isRequesting, isCalling, isUploading }) {
   return !isRequesting && !isCalling && !isUploading;
+}
+
+export function getLiveCallStartupFailure({
+  hasMicrophoneApi,
+  hasLivekitClient,
+  errorName = ""
+}, language = "zh") {
+  const copy = getUiCopy(language);
+
+  if (!hasMicrophoneApi) {
+    return copy.errors.liveCallMicrophoneUnavailable;
+  }
+
+  if (!hasLivekitClient) {
+    return copy.errors.liveCallClientUnavailable;
+  }
+
+  if (errorName === "NotAllowedError") {
+    return copy.errors.microphoneDenied;
+  }
+
+  return copy.errors.liveCallConnectionFailed;
 }
 
 export function getErrorMessage(errorCode, language = "zh") {

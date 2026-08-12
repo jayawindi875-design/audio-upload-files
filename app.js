@@ -4,6 +4,7 @@ import {
   canStartRecording,
   getClientValidationError,
   getErrorMessage,
+  getLiveCallStartupFailure,
   getStatusContent,
   getToggleLabel,
   getUiCopy,
@@ -622,8 +623,13 @@ async function startCall() {
     return;
   }
 
-  if (!navigator.mediaDevices?.getUserMedia || !window.LivekitClient) {
-    setStatus("error", copy.errors.recorderUnsupported);
+  const hasMicrophoneApi = Boolean(globalThis.navigator?.mediaDevices?.getUserMedia);
+  const hasLivekitClient = Boolean(window.LivekitClient?.Room);
+  if (!hasMicrophoneApi || !hasLivekitClient) {
+    setStatus("error", getLiveCallStartupFailure({
+      hasMicrophoneApi,
+      hasLivekitClient
+    }, currentLanguage));
     return;
   }
 
@@ -658,17 +664,19 @@ async function startCall() {
     isCalling = true;
     setStatus("calling", copy.call.liveDetail);
     updateCallReadout("live");
-    startNextCallChunk(sessionMimeType, delaySeconds);
     refreshControls();
   } catch (error) {
-    const denied = error?.name === "NotAllowedError" || error?.name === "SecurityError";
     callRoom?.disconnect();
     callRoom = null;
     isRequestingCallMicrophone = false;
     isCalling = false;
     isEndingCall = false;
     callSessionId = "";
-    setStatus("error", denied ? copy.errors.microphoneDenied : copy.errors.recorderUnsupported);
+    setStatus("error", getLiveCallStartupFailure({
+      hasMicrophoneApi,
+      hasLivekitClient,
+      errorName: error?.name
+    }, currentLanguage));
     updateCallReadout("idle");
     refreshControls();
   }

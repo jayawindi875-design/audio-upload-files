@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
 const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
+const app = readFileSync(new URL("../app.js", import.meta.url), "utf8");
 
 test("keeps developer controls behind a non-obvious trigger", () => {
   assert.doesNotMatch(html, />Developer<\/button>/);
@@ -31,6 +32,17 @@ test("shows live call controls as the primary interface", () => {
   assert.match(html, /name="call-playback-mode" value="immediate"/);
   assert.match(html, /name="call-playback-mode" value="delayed"/);
   assert.match(html, /id="call-delay-seconds"/);
+});
+
+test("starts the LiveKit call without the legacy recording chunk uploader", () => {
+  const start = app.indexOf("async function startCall()");
+  const end = app.indexOf("function stopCall()", start);
+  const startCall = app.slice(start, end);
+
+  assert.ok(start >= 0);
+  assert.ok(end > start);
+  assert.match(startCall, /setMicrophoneEnabled\(true\)/);
+  assert.doesNotMatch(startCall, /startNextCallChunk|sessionMimeType|MediaRecorder/);
 });
 
 test("keeps the legacy recorder uploader inside the developer panel", () => {

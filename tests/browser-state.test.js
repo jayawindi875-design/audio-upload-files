@@ -5,6 +5,7 @@ import {
   canStartCall,
   canStartRecording,
   formatFileSize,
+  getLiveCallStartupFailure,
   getClientValidationError,
   getErrorMessage,
   getStatusContent,
@@ -169,4 +170,23 @@ test("prevents call startup while permission, call, or upload state is active", 
   assert.equal(canStartCall({ isRequesting: true, isCalling: false, isUploading: false }), false);
   assert.equal(canStartCall({ isRequesting: false, isCalling: true, isUploading: false }), false);
   assert.equal(canStartCall({ isRequesting: false, isCalling: false, isUploading: true }), false);
+});
+
+test("explains which live-call prerequisite is unavailable", () => {
+  assert.equal(
+    getLiveCallStartupFailure({ hasMicrophoneApi: false, hasLivekitClient: true }, "en"),
+    "This in-app browser cannot access the microphone. Open this link in Chrome, Safari or Edge."
+  );
+  assert.equal(
+    getLiveCallStartupFailure({ hasMicrophoneApi: true, hasLivekitClient: false }, "en"),
+    "The live-call component did not load. Refresh the page and try again."
+  );
+  assert.equal(
+    getLiveCallStartupFailure({ hasMicrophoneApi: true, hasLivekitClient: true, errorName: "NotAllowedError" }, "en"),
+    "Microphone access was denied. Please allow microphone permission and try again."
+  );
+  assert.equal(
+    getLiveCallStartupFailure({ hasMicrophoneApi: true, hasLivekitClient: true }, "en"),
+    "The live-call server could not be reached from this network. Try another network or a VPN."
+  );
 });
