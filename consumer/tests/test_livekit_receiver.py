@@ -31,6 +31,19 @@ class DelayedPcmBufferTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(buffer.pop_due(), [b"first", b"second"])
 
+    async def test_discards_delayed_audio_when_its_call_is_replaced(self):
+        now = [50.0]
+        old_source = ("web-old", "TR_old")
+        new_source = ("web-new", "TR_new")
+        buffer = DelayedPcmBuffer(clock=lambda: now[0])
+        buffer.push(b"old", delay_seconds=10, source=old_source)
+        buffer.push(b"new", delay_seconds=10, source=new_source)
+
+        buffer.discard_source(old_source)
+        now[0] = 60.0
+
+        self.assertEqual(buffer.pop_due(), [b"new"])
+
     async def test_rejects_delay_outside_zero_to_sixty_seconds(self):
         self.assertEqual(normalize_live_delay_seconds(0), 0)
         self.assertEqual(normalize_live_delay_seconds("60"), 60)
@@ -50,20 +63,20 @@ class DelayedPcmBufferTests(unittest.IsolatedAsyncioTestCase):
 
 
 class LiveKitAudioReceiverSubscriptionTests(unittest.TestCase):
-    def test_keeps_only_the_latest_audio_track_for_each_web_participant(self):
+    def test_keeps_only_the_latest_audio_track_for_the_entire_installation(self):
         receiver = LiveKitAudioReceiver(
             url="wss://example.livekit.cloud",
             api_key="test-key",
             api_secret="test-secret",
         )
-        begin = getattr(receiver, "_begin_audio_subscription", lambda *_: ("missing", None))
+        begin = getattr(receiver, "_activate_audio_subscription", lambda *_: ("missing", None))
         finish = getattr(receiver, "_finish_audio_subscription", lambda *_: False)
 
         self.assertEqual(begin("web-example", "TR_first"), (True, None))
         self.assertEqual(begin("web-example", "TR_first"), (False, None))
-        self.assertEqual(begin("web-example", "TR_reconnected"), (True, "TR_first"))
+        self.assertEqual(begin("web-reconnected", "TR_reconnected"), (True, ("web-example", "TR_first")))
         self.assertFalse(finish("web-example", "TR_first"))
-        self.assertTrue(finish("web-example", "TR_reconnected"))
+        self.assertTrue(finish("web-reconnected", "TR_reconnected"))
 
 
 if __name__ == "__main__":

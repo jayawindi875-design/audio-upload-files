@@ -48,19 +48,23 @@ def format_livekit_audio_frame(identity: str, *, byte_count: int, delay_seconds:
 @dataclass
 class DelayedPcmBuffer:
     clock: callable = time.monotonic
-    _frames: list[tuple[float, int, bytes]] = field(default_factory=list)
+    _frames: list[tuple[float, int, object | None, bytes]] = field(default_factory=list)
     _sequence: int = 0
 
-    def push(self, frame: bytes, delay_seconds: int) -> None:
+    def push(self, frame: bytes, delay_seconds: int, source=None) -> None:
         release_at = self.clock() + delay_seconds
-        heapq.heappush(self._frames, (release_at, self._sequence, bytes(frame)))
+        heapq.heappush(self._frames, (release_at, self._sequence, source, bytes(frame)))
         self._sequence += 1
+
+    def discard_source(self, source) -> None:
+        self._frames = [frame for frame in self._frames if frame[2] != source]
+        heapq.heapify(self._frames)
 
     def pop_due(self) -> list[bytes]:
         due = []
         now = self.clock()
         while self._frames and self._frames[0][0] <= now:
-            _, _, frame = heapq.heappop(self._frames)
+            _, _, _, frame = heapq.heappop(self._frames)
             due.append(frame)
         return due
 
@@ -113,8 +117,8 @@ class LiveKitAudioReceiver:
         self._volume_controller = None
         self._audio_tasks: set[asyncio.Task] = set()
         self._audio_tasks_by_track: dict[str, asyncio.Task] = {}
-        self._active_audio_track_by_identity: dict[str, str] = {}
-        self._audio_started_for_identities: set[str] = set()
+        self._active_audio_source: tuple[str, str] | None = None
+        self._audio_started_for_sources: set[tuple[str, str]] = set()
         self._stop = asyncio.Event()
 
     def create_join_token(self) -> str:
@@ -145,17 +149,18 @@ class LiveKitAudioReceiver:
         if delay is not None:
             self.delays_by_identity[packet.participant.identity] = delay
 
-    def _begin_audio_subscription(self, identity: str, track_sid: str) -> tuple[bool, str | None]:
-        previous_track_sid = self._active_audio_track_by_identity.get(identity)
-        if previous_track_sid == track_sid:
+    def _activate_audio_subscription(self, identity: str, track_sid: str) -> tuple[bool, tuple[str, str] | None]:
+        source = (identity, track_sid)
+        previous_source = self._active_audio_source
+        if previous_source == source:
             return False, None
-        self._active_audio_track_by_identity[identity] = track_sid
-        return True, previous_track_sid
+        self._active_audio_source = source
+        return True, previous_source
 
     def _finish_audio_subscription(self, identity: str, track_sid: str) -> bool:
-        if self._active_audio_track_by_identity.get(identity) != track_sid:
+        if self._active_audio_source != (identity, track_sid):
             return False
-        del self._active_audio_track_by_identity[identity]
+        self._active_audio_source = None
         return True
 
     def _cancel_audio_task(self, track_sid: str) -> None:
@@ -163,19 +168,21 @@ class LiveKitAudioReceiver:
         if task is not None:
             task.cancel()
 
-    async def _consume_audio(self, track, participant) -> None:
+    async def _consume_audio(self, track, participant, source: tuple[str, str]) -> None:
         stream = rtc.AudioStream(track, sample_rate=48000, num_channels=1)
         try:
             async for event in stream:
+                if self._active_audio_source != source:
+                    break
                 delay = self.delays_by_identity.get(participant.identity, 0)
-                if participant.identity not in self._audio_started_for_identities:
-                    self._audio_started_for_identities.add(participant.identity)
+                if source not in self._audio_started_for_sources:
+                    self._audio_started_for_sources.add(source)
                     print(format_livekit_audio_frame(
                         participant.identity,
                         byte_count=len(event.frame.data.tobytes()),
                         delay_seconds=delay,
                     ))
-                self.buffer.push(event.frame.data.tobytes(), delay)
+                self.buffer.push(event.frame.data.tobytes(), delay, source=source)
         finally:
             await stream.aclose()
 
@@ -193,13 +200,15 @@ class LiveKitAudioReceiver:
             if track.kind != rtc.TrackKind.KIND_AUDIO:
                 return
             track_sid = publication.sid or track.sid
-            should_start, previous_track_sid = self._begin_audio_subscription(participant.identity, track_sid)
+            should_start, previous_source = self._activate_audio_subscription(participant.identity, track_sid)
             if not should_start:
                 return
-            if previous_track_sid:
-                self._cancel_audio_task(previous_track_sid)
+            if previous_source:
+                self._cancel_audio_task(previous_source[1])
+                self.buffer.discard_source(previous_source)
             print(format_livekit_track_subscription(participant.identity, "audio"))
-            task = asyncio.create_task(self._consume_audio(track, participant))
+            source = (participant.identity, track_sid)
+            task = asyncio.create_task(self._consume_audio(track, participant, source))
             self._audio_tasks.add(task)
             self._audio_tasks_by_track[track_sid] = task
 
@@ -216,6 +225,7 @@ class LiveKitAudioReceiver:
                 return
             track_sid = publication.sid or track.sid
             self._cancel_audio_task(track_sid)
+            self.buffer.discard_source((participant.identity, track_sid))
             self._finish_audio_subscription(participant.identity, track_sid)
 
         room.on("track_subscribed", handle_track)
