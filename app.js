@@ -646,7 +646,14 @@ async function startCall() {
 
   let room = null;
   try {
-    callStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    callStream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true,
+        channelCount: { ideal: 1 }
+      }
+    });
     const response = await fetch("/api/livekit-token", { method: "POST" });
     const credentials = await response.json();
     if (!response.ok || !credentials?.token || !credentials?.url) {

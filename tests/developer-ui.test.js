@@ -55,11 +55,22 @@ test("captures the microphone during the click before connecting to LiveKit", ()
 
   assert.match(
     startCall,
-    /await navigator\.mediaDevices\.getUserMedia\(\{ audio: true \}\)[\s\S]*await fetch\("\/api\/livekit-token"/
+    /await navigator\.mediaDevices\.getUserMedia\([\s\S]*\)[\s\S]*await fetch\("\/api\/livekit-token"/
   );
   assert.match(
     startCall,
     /publishTrack\(callStream\.getAudioTracks\(\)\[0\],\s*\{\s*source: window\.LivekitClient\.Track\.Source\.Microphone\s*\}\)/
+  );
+});
+
+test("captures the live-call microphone as processed mono audio", () => {
+  const start = app.indexOf("async function startCall()");
+  const end = app.indexOf("function stopCall()", start);
+  const startCall = app.slice(start, end);
+
+  assert.match(
+    startCall,
+    /getUserMedia\(\{\s*audio:\s*\{\s*echoCancellation:\s*true,\s*noiseSuppression:\s*true,\s*autoGainControl:\s*true,\s*channelCount:\s*\{\s*ideal:\s*1\s*}\s*}\s*}\)/
   );
 });
 
