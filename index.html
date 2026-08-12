@@ -28,7 +28,7 @@
       <section class="upload-stage" aria-labelledby="call-title">
         <div class="stage-copy">
           <h2 id="call-title">实时通话</h2>
-          <p id="call-description">通话会按 1 秒独立音频文件发送，树莓派继续轮询云端并通过蓝牙音箱播放。</p>
+          <p id="call-description">声音会通过 LiveKit 实时发送到树莓派；设备按你选择的秒数连续延迟播放。</p>
         </div>
 
         <fieldset class="playback-panel call-playback-panel">
@@ -57,9 +57,9 @@
                 id="call-delay-seconds"
                 type="number"
                 min="1"
-                max="604800"
+                max="60"
                 step="1"
-                value="2"
+                value="10"
                 inputmode="numeric"
               >
               <span id="call-delay-unit">秒</span>
@@ -76,11 +76,11 @@
         <div class="call-readout" aria-live="polite">
           <div>
             <span id="call-state-label">准备就绪</span>
-            <strong id="call-chunks-sent">已发送 0 段</strong>
+            <strong id="call-stream-status">尚未连接实时音频</strong>
           </div>
           <div>
-            <span>Upload queue</span>
-            <strong id="call-pending-uploads">0 段等待上传</strong>
+            <span>Playback delay</span>
+            <strong id="call-delay-readout">0 seconds</strong>
           </div>
         </div>
 
@@ -257,6 +257,7 @@
       </section>
     </main>
 
+    <script src="https://cdn.jsdelivr.net/npm/livekit-client/dist/livekit-client.umd.min.js"></script>
     <script type="module" src="./app.js"></script>
   </body>
 </html>

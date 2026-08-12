@@ -23,7 +23,10 @@ test("keeps the test song uploader inside the developer panel", () => {
 test("shows live call controls as the primary interface", () => {
   assert.match(html, /id="call-start-button"/);
   assert.match(html, /id="call-stop-button"/);
-  assert.match(html, /id="call-chunks-sent"/);
+  assert.match(html, /id="call-stream-status"/);
+  assert.match(html, /livekit-client\.umd\.min\.js/);
+  assert.doesNotMatch(html, /id="call-chunks-sent"/);
+  assert.doesNotMatch(html, /id="call-pending-uploads"/);
   assert.match(html, /name="call-playback-mode" value="immediate"/);
   assert.match(html, /name="call-playback-mode" value="delayed"/);
   assert.match(html, /id="call-delay-seconds"/);

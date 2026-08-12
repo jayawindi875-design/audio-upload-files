@@ -198,6 +198,29 @@ python -m consumer.main
 
 ## 常见错误
 
+## LiveKit 单向实时通话（当前默认模式）
+
+网页按下“开始通话”后，浏览器麦克风会持续发布到 LiveKit 房间；树莓派只订阅并播放该音频，不会向网页回传声音。
+
+- 默认房间：`device-raspberry-001`
+- 网页端通过 Cloudflare Pages Function 的 `/api/livekit-token` 领取 10 分钟临时凭据；不要把 `LIVEKIT_API_SECRET` 放进浏览器代码或 Git 仓库。
+- 树莓派从 `.env` 读取 `LIVEKIT_URL`、`LIVEKIT_API_KEY`、`LIVEKIT_API_SECRET` 后，执行 `python -m consumer.main`。
+- 页面延迟可设为 `0` 到 `60` 秒。页面发送延迟设置，树莓派收到音频帧后在本地缓冲指定时长，再交给 `ffplay` 播放。
+- 原有激光雷达音量控制仍在树莓派端持续运行，并实时控制系统播放音量。
+
+本地测试命令：
+
+```powershell
+npm test
+python -m unittest discover consumer/tests -v
+```
+
+旧的 R2 录音拉取模式仅用于回退：
+
+```powershell
+python -m consumer.main --legacy-r2
+```
+
 - `NO_FILE`: 没有提交文件
 - `UNSUPPORTED_TYPE`: 文件类型不支持
 - `FILE_TOO_LARGE`: 文件超过 50 MB

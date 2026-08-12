@@ -1,10 +1,12 @@
 import argparse
+import asyncio
 import time
 
 from consumer.config import ConsumerConfig
 from consumer.player import build_player
 from consumer.r2_client import R2QueueClient
 from consumer.worker import QueueWorker
+from consumer.livekit_receiver import build_receiver_from_env
 
 
 def build_worker_from_env() -> QueueWorker:
@@ -44,12 +46,40 @@ def run_consumer(run_once: bool = False):
     run_consumer_loop(worker, config.poll_interval_seconds)
 
 
+def build_volume_services_from_env():
+    """Reuse the existing R2 volume config/status channel when it is configured."""
+    r2_names = ("R2_ENDPOINT", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY", "R2_BUCKET")
+    if not all(__import__("os").environ.get(name, "").strip() for name in r2_names):
+        return None, None
+    config = ConsumerConfig.from_env()
+    r2_client = R2QueueClient(
+        endpoint_url=config.endpoint_url,
+        access_key_id=config.access_key_id,
+        secret_access_key=config.secret_access_key,
+        bucket_name=config.bucket_name,
+    )
+    return r2_client.get_volume_config(), r2_client.put_volume_status
+
+
+def run_livekit_receiver():
+    volume_config, volume_status_reporter = build_volume_services_from_env()
+    receiver = build_receiver_from_env(
+        volume_config=volume_config,
+        volume_status_reporter=volume_status_reporter,
+    )
+    asyncio.run(receiver.run())
+
+
 def parse_args():
-    parser = argparse.ArgumentParser(description="Poll Cloudflare R2 and consume uploaded audio files.")
+    parser = argparse.ArgumentParser(description="Run the LiveKit one-way audio receiver on Raspberry Pi.")
     parser.add_argument("--once", action="store_true", help="Process at most one object and exit.")
+    parser.add_argument("--legacy-r2", action="store_true", help="Use the legacy R2 recording queue instead.")
     return parser.parse_args()
 
 
 if __name__ == "__main__":
     args = parse_args()
-    run_consumer(run_once=args.once)
+    if args.legacy_r2:
+        run_consumer(run_once=args.once)
+    else:
+        run_livekit_receiver()

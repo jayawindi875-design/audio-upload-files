@@ -116,6 +116,8 @@ test("returns English UI copy for the call section", () => {
   assert.equal(copy.call.title, "Live call");
   assert.equal(copy.call.start, "Start call");
   assert.equal(copy.call.stop, "End call");
+  assert.match(copy.call.description, /LiveKit/);
+  assert.doesNotMatch(copy.call.description, /one-second audio files/);
 });
 
 test("returns English UI copy for the recorder section", () => {
@@ -154,12 +156,12 @@ test("resolves live call delay choices", () => {
   assert.equal(resolveCallDelaySeconds("immediate", ""), 0);
   assert.equal(resolveCallDelaySeconds("immediate", "2"), 0);
   assert.equal(resolveCallDelaySeconds("delayed", "2"), 2);
-  assert.equal(resolveCallDelaySeconds("delayed", "604800"), 604800);
+  assert.equal(resolveCallDelaySeconds("delayed", "60"), 60);
   assert.equal(resolveCallDelaySeconds("delayed", "0"), null);
   assert.equal(resolveCallDelaySeconds("delayed", ""), null);
   assert.equal(resolveCallDelaySeconds("delayed", "1.5"), null);
   assert.equal(resolveCallDelaySeconds("delayed", "-1"), null);
-  assert.equal(resolveCallDelaySeconds("delayed", "604801"), null);
+  assert.equal(resolveCallDelaySeconds("delayed", "61"), null);
 });
 
 test("prevents call startup while permission, call, or upload state is active", () => {

@@ -42,8 +42,8 @@ const elements = {
   callStartButton: document.getElementById("call-start-button"),
   callStopButton: document.getElementById("call-stop-button"),
   callStateLabel: document.getElementById("call-state-label"),
-  callChunksSent: document.getElementById("call-chunks-sent"),
-  callPendingUploads: document.getElementById("call-pending-uploads"),
+  callStreamStatus: document.getElementById("call-stream-status"),
+  callDelayReadout: document.getElementById("call-delay-readout"),
   recorderTitle: document.getElementById("recorder-title"),
   recorderDescription: document.getElementById("recorder-description"),
   recordStartButton: document.getElementById("record-start-button"),
@@ -116,6 +116,7 @@ let callChunksUploaded = 0;
 let callPendingUploads = 0;
 let callUploadFailures = 0;
 let callUploadChain = Promise.resolve();
+let callRoom = null;
 let isSavingDeveloperConfig = false;
 let isUploadingTestSong = false;
 let volumeStatusPollTimer = null;
@@ -212,8 +213,11 @@ function updateCallReadout(state = "idle") {
   };
 
   elements.callStateLabel.textContent = labels[state] || labels.idle;
-  elements.callChunksSent.textContent = copy.call.chunks.replace("{count}", String(callChunksUploaded));
-  elements.callPendingUploads.textContent = copy.call.pending.replace("{count}", String(callPendingUploads));
+  elements.callStreamStatus.textContent = state === "live"
+    ? (copy.call.streamLive || copy.call.live)
+    : (copy.call.streamIdle || labels[state] || labels.idle);
+  const delaySeconds = resolveCallDelaySeconds(getCallPlaybackMode(), elements.callDelayInput.value);
+  elements.callDelayReadout.textContent = `${delaySeconds ?? 0} ${copy.call.delayUnit}`;
 }
 
 function updatePlaybackUi() {
@@ -618,13 +622,7 @@ async function startCall() {
     return;
   }
 
-  if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
-    setStatus("error", copy.errors.recorderUnsupported);
-    return;
-  }
-
-  const sessionMimeType = chooseRecorderMimeType();
-  if (!sessionMimeType) {
+  if (!navigator.mediaDevices?.getUserMedia || !window.LivekitClient) {
     setStatus("error", copy.errors.recorderUnsupported);
     return;
   }
@@ -637,31 +635,35 @@ async function startCall() {
   }
 
   isRequestingCallMicrophone = true;
-  callChunksUploaded = 0;
-  callPendingUploads = 0;
-  callChunkIndex = 0;
-  callUploadFailures = 0;
-  callSessionId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-  callUploadChain = Promise.resolve();
   updateCallReadout("connecting");
   refreshControls();
 
   try {
-    const sessionStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    callStream = sessionStream;
+    const response = await fetch("/api/livekit-token", { method: "POST" });
+    const credentials = await response.json();
+    if (!response.ok || !credentials?.token || !credentials?.url) {
+      throw new Error("token unavailable");
+    }
+    const room = new window.LivekitClient.Room();
+    const publishDelay = () => room.localParticipant.publishData(
+      new TextEncoder().encode(JSON.stringify({ type: "playback-delay", seconds: delaySeconds })),
+      { reliable: true, topic: "playback-delay" }
+    );
+    room.on(window.LivekitClient.RoomEvent.Reconnected, publishDelay);
+    await room.connect(credentials.url, credentials.token);
+    await publishDelay();
+    await room.localParticipant.setMicrophoneEnabled(true);
+    callRoom = room;
     isRequestingCallMicrophone = false;
     isCalling = true;
-    setProgress(0);
     setStatus("calling", copy.call.liveDetail);
     updateCallReadout("live");
     startNextCallChunk(sessionMimeType, delaySeconds);
     refreshControls();
   } catch (error) {
-    clearCallChunkTimer();
     const denied = error?.name === "NotAllowedError" || error?.name === "SecurityError";
-    callStream?.getTracks().forEach((track) => track.stop());
-    callStream = null;
-    callRecorder = null;
+    callRoom?.disconnect();
+    callRoom = null;
     isRequestingCallMicrophone = false;
     isCalling = false;
     isEndingCall = false;
@@ -676,17 +678,15 @@ function stopCall() {
   if (isCalling && !isEndingCall) {
     isEndingCall = true;
     isCalling = false;
-    setStatus("uploading", getUiCopy(currentLanguage).call.endingDetail);
+    setStatus("calling", getUiCopy(currentLanguage).call.endingDetail);
     updateCallReadout("ending");
     refreshControls();
-    clearCallChunkTimer();
-    if (callRecorder?.state === "recording") {
-      callRecorder.stop();
-    } else {
-      finishCallAfterUploads();
-    }
-    callStream?.getTracks().forEach((track) => track.stop());
-    callStream = null;
+    callRoom?.disconnect();
+    callRoom = null;
+    isEndingCall = false;
+    setStatus("call-ended", getUiCopy(currentLanguage).call.endedDetail);
+    updateCallReadout("ended");
+    refreshControls();
   }
 }
 

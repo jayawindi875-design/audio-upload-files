@@ -5,6 +5,7 @@ import {
   MAX_FILE_SIZE_BYTES,
   normalizeDelaySeconds
 } from "./upload-policy.js";
+import { MAX_LIVE_DELAY_SECONDS } from "./live-call-policy.js";
 
 const MB_LIMIT = Math.round(MAX_FILE_SIZE_BYTES / 1024 / 1024);
 
@@ -15,7 +16,7 @@ const UI_COPY = {
     heroIntro: "点击开始通话后，手机麦克风会持续把声音同步到云端装置；旧版录音上传已收进 developer 控件。",
     call: {
       title: "实时通话",
-      description: "通话会按 1 秒独立音频文件发送，树莓派继续轮询云端并通过蓝牙音箱播放。",
+      description: "声音会通过 LiveKit 实时发送到树莓派；设备按你选择的秒数连续延迟播放。",
       start: "开始通话",
       stop: "结束通话",
       playbackTitle: "选择播放时间",
@@ -89,7 +90,7 @@ const UI_COPY = {
     heroIntro: "Start a call to stream your phone microphone to the cloud installation. The legacy recording uploader now lives in developer controls.",
     call: {
       title: "Live call",
-      description: "The call sends standalone one-second audio files while the Pi keeps polling the cloud and playing through the Bluetooth speaker.",
+      description: "LiveKit sends microphone audio to the Raspberry Pi in real time; the device continuously plays it after the selected delay.",
       start: "Start call",
       stop: "End call",
       playbackTitle: "Choose playback time",
@@ -211,7 +212,7 @@ export function resolvePlaybackDelaySeconds(playbackMode, delayValue) {
   }
 
   const seconds = normalizeDelaySeconds(delayValue);
-  return playbackMode === "delayed" && seconds !== null && seconds > 0 ? seconds : null;
+  return playbackMode === "delayed" && seconds !== null && seconds > 0 && seconds <= 60 ? seconds : null;
 }
 
 export function canStartRecording({ isRequesting, isRecording, isUploading }) {
@@ -224,7 +225,9 @@ export function resolveCallDelaySeconds(playbackMode, delayValue) {
   }
 
   const seconds = normalizeDelaySeconds(delayValue);
-  return playbackMode === "delayed" && seconds !== null && seconds > 0 ? seconds : null;
+  return playbackMode === "delayed" && seconds !== null && seconds > 0 && seconds <= MAX_LIVE_DELAY_SECONDS
+    ? seconds
+    : null;
 }
 
 export function canStartCall({ isRequesting, isCalling, isUploading }) {
